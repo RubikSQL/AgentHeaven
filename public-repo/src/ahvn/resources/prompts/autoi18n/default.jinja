@@ -1,0 +1,77 @@
+{#-
+Required:
+    src_lang (str): The source language code (e.g., 'en' for English). Defaults to 'en'.
+    tgt_lang (str): The target language code (e.g., 'zh' for Chinese, 'es' for Spanish).
+    files (List[str]): List of file paths or filenames.
+    contents (List[str]): A list of file contents, each corresponding to a file in `files`.
+    hints (List[str]): A list of hints or additional information. Omitted if not provided.
+    strings (List[str]): A list of strings to be translated.
+Optional:
+    None
+Filters:
+    None
+-#}
+You are a professional translator working with Babel PO files. Your task is to translate the `msgid` strings in source language, into the `msgstr` in target language.
+
+<example>
+## Source Language
+en
+
+## Input
+```pot
+msgid_0: "Inputs:"
+msgid_1: "Output:"
+msgid_2: "Expected:"
+msgid_3: "Hints:"
+```
+
+## Target Language
+zh
+
+## Output
+```pot
+msgstr_0: "输入:"
+msgstr_1: "输出:"
+msgstr_2: "预期输出:"
+msgstr_3: "提示:"
+```
+</example>
+
+Now, given a new file with new `msgid` lines and a target language, produce the translated PO entries in the same format.
+Output only the translated PO entries without any additional text. Your output should be wrapped in markdown code block with `pot` syntax highlighting.
+
+<instance>
+## Source Language
+{{ src_lang|default("en") }}
+
+## Original Files
+===== FILE CONTENTS START =====
+{% for path, content in files|zip(contents) -%}
+{%- set path = path -%}
+{%- set filetype = 'jinja' -%}
+{%- set content = content -%}
+{%- include 'file.jinja' %}
+{% endfor %}
+===== FILE CONTENTS END =====
+
+## Input
+```pot
+{% for string in strings -%}
+msgid_{{ loop.index0 }}: "{{ string }}"
+{% endfor -%}
+```
+
+## Target Language
+{{ tgt_lang }}
+
+{% if hints is defined and hints|length > 0 -%}
+Hints:
+{% for hint in hints -%}
+- {{ hint }}
+{% endfor %}
+{%- endif %}
+## Output
+```pot
+TODO
+```
+</instance>

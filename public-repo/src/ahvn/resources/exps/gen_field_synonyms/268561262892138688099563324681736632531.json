@@ -1,0 +1,22 @@
+{
+    "func": "gen_field_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "period",
+            "short_description": "Accounting period",
+            "description": "This column represents the accounting period, formatted as YYYYMM, e.g., '202401'. Use this for time-based filtering or aggregation.",
+            "max_count": 3
+        }
+    },
+    "output": [
+        "fiscal_period",
+        "time_period",
+        "month_period"
+    ],
+    "expected": [
+        "fiscal_period",
+        "time_period",
+        "month_period"
+    ],
+    "metadata": {}
+}

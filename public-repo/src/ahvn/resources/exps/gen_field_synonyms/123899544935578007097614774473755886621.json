@@ -1,0 +1,20 @@
+{
+    "func": "gen_field_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "ytd_value",
+            "short_description": "Year-to-date cumulative value",
+            "description": "Indicates the cumulative sales value for the current year from the beginning to the current period.",
+            "max_count": 2
+        }
+    },
+    "output": [
+        "ytd",
+        "cumulative_yearly"
+    ],
+    "expected": [
+        "ytd",
+        "cumulative_yearly"
+    ],
+    "metadata": {}
+}

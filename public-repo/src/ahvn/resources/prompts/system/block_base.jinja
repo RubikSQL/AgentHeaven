@@ -1,0 +1,9 @@
+{#-
+Required:
+    content (str): A basic block content.
+Optional:
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+-#}
+{% if cutoff is not defined or cutoff is none %}{% set cutoff = -1 %}{% endif %}
+{% if cutoff > 0 %}{% set content = content | truncate(cutoff, false) %}{% endif %}
+{{ content }}

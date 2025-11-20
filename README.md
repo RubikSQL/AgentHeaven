@@ -32,8 +32,6 @@ Optional Dependencies:
 
 ### Quick Install
 
-> *Note: Currently AgentHeaven is not released, please install from source.*
-
 Minimal installation (core only, no optional dependencies):
 
 ```bash

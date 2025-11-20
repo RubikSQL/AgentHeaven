@@ -1,0 +1,10 @@
+{#-
+Required:
+    content (str): A basic block content to be converted to python `repr` string.
+Optional:
+    round_digits (Optional[int]): For representation of floats, number of digits to round to. Default to 6.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+-#}
+{% if cutoff is not defined or cutoff is none %}{% set cutoff = -1 %}{% endif %}
+{% if round_digits is not defined or round_digits is none %}{% set round_digits = 6 %}{% endif %}
+"{{ content | value_repr(cutoff=cutoff, round_digits=round_digits) }}"

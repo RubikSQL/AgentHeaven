@@ -32,11 +32,11 @@ jobs:
       run: |
         # --check: Don't write the files back, just return the status.
         # --diff: Show diffs of the changes that would be made.
-        black --line-length 160 --check --diff src/ tests/ scripts/ tutorials/
+        black --line-length 160 --check --diff src/ tests/ tutorials/
         
     - name: Run Flake8 (linter)
       run: |
-        flake8 --max-line-length=160 --ignore=F401,F403,F405,E203,E402,E501,W503,E701 src/ tests/ scripts/ tutorials/
+        flake8 --max-line-length=160 --ignore=F401,F403,F405,E203,E402,E501,W503,E701 src/ tests/ tutorials/
 
   format-check:
     runs-on: ubuntu-latest
@@ -59,9 +59,9 @@ jobs:
     - name: Check if code needs formatting
       id: black-check
       run: |
-        if ! black --line-length 160 --check src/ tests/ scripts/ tutorials/ --quiet; then
+        if ! black --line-length 160 --check src/ tests/ tutorials/ --quiet; then
           echo "needs_formatting=true" >> $GITHUB_OUTPUT
-          echo "Code needs formatting. Please run: black --line-length 160 src/ tests/ scripts/ tutorials/"
+          echo "Code needs formatting. Please run: black --line-length 160 src/ tests/ tutorials/"
           exit 1
         else
           echo "needs_formatting=false" >> $GITHUB_OUTPUT
@@ -77,5 +77,5 @@ jobs:
             issue_number: context.issue.number,
             owner: context.repo.owner,
             repo: context.repo.repo,
-            body: '⚠️ **Code Formatting Required**\n\nYour code needs to be formatted with Black. Please run:\n\n```bash\nblack --line-length 160 src/ tests/ scripts/ tutorials/\n```\n\nOr use the local script:\n\n```bash\nbash scripts/flake.bash -b\n```'
+            body: '⚠️ **Code Formatting Required**\n\nYour code needs to be formatted with Black. Please run:\n\n```bash\nblack --line-length 160 src/ tests/ tutorials/\n```\n\nOr use the local script:\n\n```bash\nbash scripts/flake.bash -b\n```'
           })

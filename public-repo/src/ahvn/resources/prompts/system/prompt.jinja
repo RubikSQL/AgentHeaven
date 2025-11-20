@@ -1,0 +1,72 @@
+{#-
+Optional:
+    system (Optional[str]): The system prompt content.
+    descriptions (Optional[List[str]]): A list of descriptions or guidelines for the model.
+        If a list, each item is treated as a separate instruction with bullet points.
+        If a string, it is treated as a single instruction with no bullet points.
+    examples (Optional[List[CacheEntry]]): A list of example instances to display. Each instance should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+    instructions (Optional[List[str]]): A list of instructions for the model.
+        If a list, each item is treated as a separate instruction with bullet points.
+        If a string, it is treated as a single instruction with no bullet points.
+    instance (Optional[CacheEntry]): The instance to display. It should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+Dependency:
+    - "system/prompt_instance.jinja"
+-#}
+{% if system is defined and system is not none %}
+{{ system | tr }}
+
+
+{% endif %}
+{% if descriptions is defined and descriptions is not none and descriptions | length > 0 %}
+{% set title %}{% trans %}Task Descriptions{% endtrans %}{% endset %}
+{% set translated_descriptions = descriptions | map('tr') | list %}
+{% with blocks=translated_descriptions, title=title, depth=2, bullet="-" %}
+{% include "system/block_list.jinja" %}
+{% endwith %}
+
+
+{% endif %}
+{% if examples is defined and examples is not none and examples | length > 0 %}
+{% set examples_content %}
+{% with examples=examples %}
+{% include "system/prompt_examples.jinja" %}
+{% endwith %}
+{% endset %}
+{% set title %}{% trans %}Examples{% endtrans %}{% endset %}
+{% with blocks=[examples_content], title=title, depth=2, bullet=none %}
+{% include "system/block_list.jinja" %}
+{% endwith %}
+
+{% endif %}
+{% if instructions is defined and instructions is not none and instructions | length > 0 %}
+{% set title %}{% trans %}Instructions{% endtrans %}{% endset %}
+{% set translated_instructions = instructions | map('tr') | list %}
+{% with blocks=translated_instructions, title=title, depth=2, bullet="-" %}
+{% include "system/block_list.jinja" %}
+{% endwith %}
+
+
+{% endif %}
+{% if instance is defined and instance is not none and instance.inputs | length > 0 %}
+{% set instance_content %}
+{% with instance=instance %}
+{% include "system/prompt_instance.jinja" %}
+{% endwith %}
+{% endset %}
+{% set title %}{% trans %}New Instance{% endtrans %}{% endset %}
+{% with blocks=[instance_content], title=title, depth=2, bullet=none %}
+{% include "system/block_list.jinja" %}
+{% endwith %}
+
+
+{% endif %}

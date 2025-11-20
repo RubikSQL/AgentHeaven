@@ -1,0 +1,24 @@
+asyncpg
+chromadb
+duckdb==1.3.2
+duckdb-engine
+fastmcp
+gdown
+ipykernel
+lancedb
+llama-index-tools-neo4j
+llama-index-vector-stores-chroma
+llama-index-vector-stores-lancedb
+llama-index-vector-stores-milvus
+llama-index-vector-stores-postgres
+# milvus-lite   # not supported on windows
+# neo4j
+# neo4j-rust-ext
+ollama
+prompt_toolkit
+psycopg2
+pyahocorasick
+pyarrow
+pymilvus
+pymysql
+spacy

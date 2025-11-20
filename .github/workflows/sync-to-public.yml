@@ -1,0 +1,70 @@
+name: Sync Release to Public Repository
+
+on:
+  push:
+    branches:
+      - release
+
+jobs:
+  sync-to-public:
+    name: Sync to Public Repo
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout private repo (release branch)
+        uses: actions/checkout@v4
+        with:
+          ref: release
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep '__version__' src/ahvn/version.py | sed -E "s/.*\"([^\"]+)\".*/\1/")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Detected version: $VERSION"
+
+      - name: Checkout public repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.PUBLIC_REPO }}
+          path: public-repo
+          token: ${{ secrets.PUBLIC_REPO_TOKEN }}
+
+      - name: Sync files to public repo
+        run: |
+          rsync -av --delete \
+            --exclude-from='scripts/public_exclude.txt' \
+            --exclude='.git' \
+            ./ public-repo/
+
+      - name: Commit and push to public repo
+        working-directory: public-repo
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Ensure we're on master and up to date
+          git checkout master
+          git pull origin master
+          
+          # Create release branch
+          PUBLIC_RELEASE_BRANCH="release-$VERSION"
+          if git show-ref --verify --quiet "refs/heads/$PUBLIC_RELEASE_BRANCH"; then
+            git checkout "$PUBLIC_RELEASE_BRANCH"
+          else
+            git checkout -b "$PUBLIC_RELEASE_BRANCH"
+          fi
+          
+          # Add and commit
+          git add .
+          if ! git diff-index --quiet HEAD --; then
+            git commit -m "Release v$VERSION"
+            git push -u origin "$PUBLIC_RELEASE_BRANCH"
+            echo "✓ Pushed release-$VERSION to public repo"
+          else
+            echo "ℹ No changes to commit"
+          fi

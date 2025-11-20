@@ -1,0 +1,11 @@
+{#-
+Required:
+    signature (str): The formatted function signature with defaults rendered.
+    docstring (Optional[str]): A synthesized docstring without surrounding quotes.
+Optional:
+    None
+Filters:
+    None
+-#}
+- `{{ signature }}`{% if docstring %}:
+{{ docstring | indent(4, True) }}{% endif %}

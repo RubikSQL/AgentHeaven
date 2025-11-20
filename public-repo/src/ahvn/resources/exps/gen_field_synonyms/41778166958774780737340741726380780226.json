@@ -1,0 +1,20 @@
+{
+    "func": "gen_field_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "state_province",
+            "short_description": "State or province",
+            "description": "Specifies the state or province of the sales, with possible values like 'California', 'New York', 'Texas', etc.",
+            "max_count": 2
+        }
+    },
+    "output": [
+        "province",
+        "state"
+    ],
+    "expected": [
+        "province",
+        "state"
+    ],
+    "metadata": {}
+}

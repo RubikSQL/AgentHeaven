@@ -1,0 +1,36 @@
+{#-
+Required:
+    examples (List[CacheEntry]): The list of example instances to display. Each instance should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+Optional:
+    input_schema (Optional[Dict[str, Any]]): The schema for the inputs.
+        For each input key, a mode can be specified to format the input value.
+        Currently only support the following mode:
+            - "base": Display the raw value.
+            - "repr": Display the value using its repr().
+            - "json": Display the value as a JSON string.
+            - "code": Display the value as a code block.
+        For more arguments, see "system/block.jinja".
+        Default mode is "base".
+    output_schema (Optional[Dict[str, Any]]): The schema for the output.
+        Similar to input_schema, but contain only one dictionary for the output.
+        e.g., `{"mode": "code"}` or `{"mode": "repr"}`.
+        Default mode is "repr".
+    tag (Optional[str]): The tag for the content.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+Dependency:
+    - "system/prompt_instance.jinja"
+-#}
+{% for example in examples %}
+{% with instance=example, input_schema=input_schema | default(none), output_schema=output_schema | default(none), tag=tag | default("example"), idx=loop.index, cutoff=cutoff | default(none) %}
+{% include "system/prompt_instance.jinja" %}
+
+{% endwith %}
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}
