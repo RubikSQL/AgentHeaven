@@ -1,0 +1,89 @@
+{#-
+Required:
+    instance (CacheEntry): The instance instance to display. It should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+Optional:
+    input_schema (Optional[Dict[str, Any]]): The schema for the inputs.
+        For each input key, a mode can be specified to format the input value.
+        Currently only support the following mode:
+            - "base": Display the raw value.
+            - "repr": Display the value using its repr().
+            - "json": Display the value as a JSON string.
+            - "code": Display the value as a code block.
+        For more arguments, see "system/block.jinja".
+        Default mode is "base".
+    output_schema (Optional[Dict[str, Any]]): The schema for the output.
+        Similar to input_schema, but contain only one dictionary for the output.
+        e.g., `{"mode": "code"}` or `{"mode": "repr"}`.
+        Default mode is "repr".
+    tag (Optional[str]): The tag for the content.
+    idx (Optional[int]): The index of the block. Default to no index.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+Dependency:
+    - "system/block.jinja"
+-#}
+{% set content %}
+{% trans %}Inputs:{% endtrans %}
+
+{% for input_key, input_value in instance.inputs.items() %}
+{% set mode = "base" %}
+{% if input_schema is defined and input_schema is not none and input_key in input_schema %}
+{% set mode = input_schema[input_key].mode | default("base") %}
+{% endif %}
+{% set separator = " " %}
+{% if mode == "code" or mode == "json" %}{% set separator = "\n" %}{% endif %}
+- {{ input_key }}:{{ separator }}{% with content=input_value, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+
+{% endfor -%}
+{%- if instance.metadata.hints is defined and instance.metadata.hints is not none and instance.metadata.hints | length > 0 %}
+
+{% trans %}Hints:{% endtrans %}
+
+{% for hint in instance.metadata.hints %}
+- {{ hint | tr }}
+{% endfor -%}
+{% endif -%}
+{%- if instance.output is defined and instance.output is not ellipsis %}
+
+{% trans %}Output:{% endtrans %}
+
+{% set output_content -%}
+{% set mode = "repr" %}
+{% if output_schema is defined and output_schema is not none %}
+{% set mode = output_schema.mode | default("repr") %}
+{% endif %}
+{% with content=instance.output, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+{%- endset %}
+{% with content=output_content, mode=mode, tag="output", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
+
+{% endif -%}
+{%- if instance.expected is defined and instance.expected is not ellipsis %}
+
+{% trans %}Expected:{% endtrans %}
+
+{% set expected_content -%}
+{% set mode = "repr" %}
+{% if output_schema is defined and output_schema is not none and mode in output_schema %}
+{% set mode = output_schema.mode | default("repr") %}
+{% endif %}
+{% with content=instance.expected, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+{%- endset %}
+{% with content=expected_content, mode=mode, tag="expected", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
+
+{% endif -%}
+{%- if instance.metadata.notes is defined and instance.metadata.notes is not none and instance.metadata.notes | length > 0 %}
+
+{% trans %}Notes:{% endtrans %}
+
+{% for note in instance.metadata.notes %}
+- {{ note | tr }}
+{% endfor -%}
+{% endif %}
+{% endset %}
+{% with content=content | trim, tag=tag | default("instance"), idx=idx | default(none), cutoff=cutoff | default(none) %}
+{% include "system/block_tag.jinja" %}
+{% endwith %}

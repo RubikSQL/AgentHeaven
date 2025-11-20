@@ -1,0 +1,23 @@
+{
+    "func": "gen_enum_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "state",
+            "short_description": "State name, possible values include: California, New York, Texas, Florida, Illinois, Pennsylvania, Ohio",
+            "description": "Specifies the state of the sales. Ensure state names match the provided list to avoid query errors.",
+            "base_value": "California",
+            "max_count": 3
+        }
+    },
+    "output": [
+        "CA",
+        "Calif",
+        "Cali"
+    ],
+    "expected": [
+        "CA",
+        "Calif",
+        "Cali"
+    ],
+    "metadata": {}
+}

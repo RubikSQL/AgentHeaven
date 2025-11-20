@@ -1,0 +1,44 @@
+{#-
+Required:
+    blocks (List[str]): A list of knowledge contents.
+Optional:
+    title (Optional[str]): The title of the section.
+        If set to an empty string, no title is displayed but an empty line is prepended.
+        If set to None (not defined), no title is displayed.
+        Default to None.
+    depth (Optional[int]): The depth level of the section.
+        If set to n (n >= 0), the title is prefixed with n '#' characters.
+        Notice that when n = 0, no '#' character is prefixed but a leading space is still added before the title.
+        If set to None (not defined) or n < 0, no title symbols are prefixed.
+        Default to 1.
+    bullet (Optional[str]): The bullet point to use for each item.
+        If set to an empty string, a leading space is still prepended to each knowledge item.
+        If set to None (not defined), there will be no bullet points.
+        Default to '-', meaning each knowledge item is prefixed with '- '.
+    limit (Optional[int]): Number of items to show maximally.
+        If set to n (n > 0), keep only top ceil(n/2) and bottom floor(n/2) items, with `... (omitting x records)`.
+        If the number of items is less than or equal to n + 1 (the omission line), show all items.
+        Default to -1, meaning no limiting and thus no omission.
+Filters:
+    omission_list(limit:int=-1): A filter to limit the number of items displayed, adding an omission line if necessary.
+-#}
+{% set blocks = [] if (blocks is not defined) or (blocks is none) else blocks %}
+{% set title = none if (title is not defined) else title %}
+{% set title_str = "" if (title is none) else title %}
+{% set depth = 1 if (depth is not defined) else depth %}
+{% set bullet = "-" if (bullet is not defined) else bullet %}
+{% set bullet_str = "" if (bullet is none) else bullet %}
+{% set limit = -1 if (limit is not defined) or (limit is none) else limit %}
+{% if title is not none %}{% if (depth is not none) and (depth >= 0) %}{{ '#' * (depth | default(1)) }} {% endif %}{{ title_str + '\n' }}{% endif -%}
+{% if blocks|length > 0 %}
+{% for item in blocks | omission_list(limit | default(-1)) %}
+{% if item is sequence and item|length == 2 and item[0] == 'OMISSION' %}
+{% set omitted_cnt = item[1] %}
+{{ bullet_str }}{% if bullet is not none %} {% endif %}{% trans cnt=omitted_cnt %}... (omitting {{ cnt }} record){% pluralize %}... (omitting {{ cnt }} records){% endtrans +%}
+{% else %}
+{{ bullet_str }}{% if bullet is not none %} {% endif %}{{ item }}
+{% endif %}
+{% endfor %}
+{% else %}
+{% trans %}None{% endtrans +%}
+{% endif %}

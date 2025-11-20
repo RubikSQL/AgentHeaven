@@ -1,0 +1,21 @@
+{
+    "func": "gen_enum_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "brand",
+            "short_description": "Brand name, possible values include: Toyota, Honda, Ford, Chevrolet",
+            "description": "Indicates the automotive brand with a limited set of manufacturer names.",
+            "base_value": "Toyota",
+            "max_count": 3
+        }
+    },
+    "output": [
+        "TOYOTA",
+        "Toyota Motor"
+    ],
+    "expected": [
+        "TOYOTA",
+        "Toyota Motor"
+    ],
+    "metadata": {}
+}

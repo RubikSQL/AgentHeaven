@@ -1,0 +1,21 @@
+{
+    "func": "gen_enum_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "city",
+            "short_description": "City name, possible values include: Los Angeles, San Francisco, New York City, Chicago, Houston",
+            "description": "This column represents the city where sales occurred, with a list of possible values including major US cities.",
+            "base_value": "Los Angeles",
+            "max_count": 2
+        }
+    },
+    "output": [
+        "LA",
+        "L.A."
+    ],
+    "expected": [
+        "LA",
+        "L.A."
+    ],
+    "metadata": {}
+}

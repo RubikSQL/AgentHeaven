@@ -1,0 +1,21 @@
+{
+    "func": "gen_enum_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "region",
+            "short_description": "Regional division, possible values include: Northeast, Southeast, Midwest, Southwest, West",
+            "description": "Stores geographical sales regions with predefined regional divisions.",
+            "base_value": "Northeast",
+            "max_count": 2
+        }
+    },
+    "output": [
+        "NE",
+        "Northeastern"
+    ],
+    "expected": [
+        "NE",
+        "Northeastern"
+    ],
+    "metadata": {}
+}

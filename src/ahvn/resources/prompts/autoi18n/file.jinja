@@ -1,0 +1,16 @@
+{#-
+File Template for displaying file contents inside a code block.
+
+Required:
+    path (str): The file path or filename to display. Example: 'README.md'
+    filetype (str): The code block language hint for syntax highlighting (e.g., 'py', 'json', 'plaintext'). Defaults to ''.
+    content (str): The raw content of the file to display. This will be placed inside the code block.
+Optional:
+    None
+Filters:
+    None
+-#}
+File: `{{ path }}`
+```{{ filetype|default('') }}
+{{ content }}
+```

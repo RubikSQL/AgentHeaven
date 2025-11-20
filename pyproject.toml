@@ -1,0 +1,53 @@
+[project]
+name = "agent-heaven"
+dynamic = ["version", "dependencies", "optional-dependencies"]
+authors = [
+    { name="RubikSQL Team", email="chenzui1@huawei.com" },
+]
+description = "AgentHeaven: Ask not what your agents can do for you, ask what you can do for your agents."
+readme = { file = "README.en.md", content-type = "text/markdown" }
+requires-python = ">=3.10,<3.14"
+keywords = ["agent", "ai", "heaven", "ahvn"]
+license = { file = "LICENSE" }
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent"
+]
+
+[project.urls]
+Homepage = "https://rubiksql.github.io/AgentHeaven-docs"
+Documentation = "https://rubiksql.github.io/AgentHeaven-docs"
+Repository = "https://github.com/RubikSQL/AgentHeaven"
+"Bug Tracker" = "https://github.com/RubikSQL/AgentHeaven/issues"
+
+[build-system]
+requires = [ "setuptools>=62.6", "wheel" ]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "ahvn.version.__version__"}
+dependencies = { file = ["requirements.txt"] }
+optional-dependencies.exp = { file = ["requirements-exp.txt"] }
+optional-dependencies.gui = { file = ["requirements-gui.txt"] }
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+
+[tool.black]
+line-length = 160
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+filterwarnings = [
+    "ignore:.*:DeprecationWarning:litellm.*"
+]
+
+[project.scripts]
+ahvn = "ahvn.cli.ahvn:cli"
+
+[project.gui-scripts]
+ahvn-gui = "ahvn.gui.ahvn:gui"
