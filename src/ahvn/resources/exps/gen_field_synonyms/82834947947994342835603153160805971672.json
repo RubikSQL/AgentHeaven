@@ -1,0 +1,22 @@
+{
+    "func": "gen_field_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "region",
+            "short_description": "Sales region",
+            "description": "Stores geographical sales regions, with possible values like 'East China', 'South China', 'Central China', and 'North China'.",
+            "max_count": 3
+        }
+    },
+    "output": [
+        "area",
+        "district",
+        "territory"
+    ],
+    "expected": [
+        "area",
+        "district",
+        "territory"
+    ],
+    "metadata": {}
+}

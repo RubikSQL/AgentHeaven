@@ -1,0 +1,23 @@
+{#-
+# Legacy
+Optional:
+    examples (Optional[List[CacheEntry]]): A list of example instances to display. Each instance should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+    instance (Optional[CacheEntry]): The instance to display. It should contain keys:
+        - inputs (Dict[str, Any]): The input keys and values.
+        - metadata.hints (Optional[List[str]]): A list of hints or notes.
+        - output (Optional[Any]): The output value.
+        - expected (Optional[Any]): The expected output value.
+        - metadata.notes (Optional[List[str]]): A list of additional notes.
+Dependency:
+    - "system/prompt.jinja"
+-#}
+{% set system %}{% trans %}You are a professional translator working with Babel po files. Your task is to translate the `msgid` strings in source language, into the `msgstr` in target language.{% endtrans %}{% endset %}
+{% set instruction_1 %}{% trans %}Given a po file with new `msgid` lines and a target language, produce the translated PO entries in the same format.{% endtrans %}{% endset %}
+{% set instruction_2 %}{% trans %}Output only the translated PO entries without any additional text. Your output should be wrapped in markdown code block with `pot` syntax highlighting.{% endtrans %}{% endset %}
+
+{% include "system/prompt.jinja" %}

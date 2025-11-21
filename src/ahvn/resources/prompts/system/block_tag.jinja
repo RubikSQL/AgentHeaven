@@ -1,0 +1,13 @@
+{#-
+Required:
+    content (str): A basic content to be wrapped in a tag.
+Optional:
+    tag (Optional[str]): The tag for the content.
+    idx (Optional[int]): The index of the block. Default to no index.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+-#}
+{% if cutoff is not defined or cutoff is none %}{% set cutoff = -1 %}{% endif %}
+{% if cutoff > 0 %}{% set content = content | truncate(cutoff, false) %}{% endif %}
+<{% if idx is defined and idx is not none %}{{ tag }}_{{ idx }}{% else %}{{ tag }}{% endif %}>
+{{ content }}
+</{% if idx is defined and idx is not none %}{{ tag }}_{{ idx }}{% else %}{{ tag }}{% endif %}>

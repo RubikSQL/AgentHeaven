@@ -1,0 +1,81 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches:
+      - master
+      - develop
+  pull_request:
+    branches:
+      - master
+      - develop
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install black flake8
+        
+    - name: Run Black (code formatter check)
+      run: |
+        # --check: Don't write the files back, just return the status.
+        # --diff: Show diffs of the changes that would be made.
+        black --line-length 160 --check --diff src/ tests/ tutorials/
+        
+    - name: Run Flake8 (linter)
+      run: |
+        flake8 --max-line-length=160 --ignore=F401,F403,F405,E203,E402,E501,W503,E701 src/ tests/ tutorials/
+
+  code-quality-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+        
+    - name: Install Black
+      run: |
+        python -m pip install --upgrade pip
+        pip install black
+        
+    - name: Check if code needs formatting
+      id: black-check
+      run: |
+        if ! black --line-length 160 --check src/ tests/ tutorials/ --quiet; then
+          echo "needs_formatting=true" >> $GITHUB_OUTPUT
+          echo "Code needs formatting. Please run: black --line-length 160 src/ tests/ tutorials/"
+          exit 1
+        else
+          echo "needs_formatting=false" >> $GITHUB_OUTPUT
+          echo "Code is properly formatted."
+        fi
+        
+    - name: Comment on PR if formatting needed
+      if: failure() && steps.black-check.outputs.needs_formatting == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: '⚠️ **Code Formatting Required**\n\nYour code needs to be formatted with Black. Please run:\n\n```bash\nblack --line-length 160 src/ tests/ tutorials/\n```\n\nOr use the local script:\n\n```bash\nbash scripts/flake.bash -b\n```'
+          })

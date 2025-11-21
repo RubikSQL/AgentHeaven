@@ -1,0 +1,23 @@
+{#-
+Required:
+    content (str): A file content.
+Optional:
+    language (Optional[str]): The programming language for syntax highlighting. Default to ''.
+    start (Optional[int]): The starting line number. Default to -1 (no line numbers).
+    window (Optional[Tuple[int, int]]): A tuple specifying the (start, end)
+        line numbers to include. If None, includes all lines. Default to None.
+    filepath (Optional[str]): The path to the file if applicable.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+-#}
+{% if cutoff is not defined or cutoff is none %}{% set cutoff = -1 %}{% endif %}
+{% if cutoff > 0 %}{% set content = content | truncate(cutoff, false) %}{% endif %}
+{% if start is not defined or start is none %}{% set start = -1 %}{% endif %}
+{% if language is not defined or language is none %}{% set language = '' %}{% endif %}
+{% if window is not defined or window is none %}{% set window = none %}{% endif %}
+{% if filepath is defined and filepath is not none %}
+{% trans %}File:{% endtrans %} {{ filepath }}
+{% endif %}
+{% set markdown_symbol = content | markdown_symbol %}
+{{ markdown_symbol }}{{ language }}
+{{ content | line_numbered(start=start, window=window) }}
+{{ markdown_symbol }}

@@ -1,0 +1,14 @@
+{#-
+Required:
+    content (str): A json object to be serialized.
+Optional:
+    round_digits (Optional[int]): For representation of floats, number of digits to round to. Default to 6.
+    indent (Optional[int]): The indentation level for pretty-printing. Default to 4.
+    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+-#}
+{% if cutoff is not defined or cutoff is none %}{% set cutoff = -1 %}{% endif %}
+{% if round_digits is not defined or round_digits is none %}{% set round_digits = 6 %}{% endif %}
+{% if indent is not defined or indent is none %}{% set indent = 4 %}{% endif %}
+```json
+{{ content | json_repr(cutoff=cutoff, indent=indent) }}
+```

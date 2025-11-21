@@ -1,0 +1,5 @@
+{
+    "min_length": 2,
+    "inverse": true,
+    "kl_synonyms": {}
+}

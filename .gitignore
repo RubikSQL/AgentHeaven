@@ -1,0 +1,75 @@
+# Basic ignores
+.DS_Store
+Thumbs.db
+*.pyc
+*.pyd
+*.pyo
+__pycache__/
+*.egg-info/
+.eggs/
+.venv/
+.idea/
+.vscode/
+*.code-workspace
+.pytest_cache/
+pytest_cache/
+.cache/
+env/
+venv/
+site/
+dist/
+build/
+scripts/
+.pypirc
+
+# Common extensions
+*.test
+*.cache
+*.log
+*.temp
+*.lock
+*.zip
+*.tar
+*.gz
+*.tar.gz
+*.rar
+*.pkl
+*.egg
+*.whl
+
+# Documentation artifacts
+!docs/**/build/
+!docs/**/build/**
+docs/**/build/.doctrees/
+docs/**/build/.doctrees/**
+docs/**/build/.buildinfo
+docs/**/build/environment.pickle
+docs/**/build/*.doctree
+docs/**/build/*.pickle
+docs/**/build/doctrees/
+docs/**/build/doctrees/**
+docs/**/source/api/
+
+# Conventional folders and files
+__assets__/
+_legacy/
+secret/
+temp.py
+temp.bash
+session.json
+log.json
+log.txt
+
+# Vibe coding files
+QWEN.md
+GEMINI.md
+CLAUDE.md
+.windsurf/
+.claude/
+
+# AgentHeaven
+.ahvn/
+
+# Temporary
+src/ahvn/resources/ukfs/*
+src/ahvn/imitator/*

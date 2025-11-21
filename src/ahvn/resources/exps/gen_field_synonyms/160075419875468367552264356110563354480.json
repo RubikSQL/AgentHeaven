@@ -1,0 +1,22 @@
+{
+    "func": "gen_field_synonyms",
+    "inputs": {
+        "inputs": {
+            "name": "brand",
+            "short_description": "Brand name",
+            "description": "Indicates the automotive brand, with possible values like 'Toyota', 'Honda', 'Ford', etc.",
+            "max_count": 3
+        }
+    },
+    "output": [
+        "manufacturer",
+        "make",
+        "brand_name"
+    ],
+    "expected": [
+        "manufacturer",
+        "make",
+        "brand_name"
+    ],
+    "metadata": {}
+}
