@@ -8,7 +8,6 @@ __all__ = [
     "dunflat",
     "ConfigManager",
     "HEAVEN_CM",
-    "ahvn_resource",
     "hpj",
     "encrypt_config",
 ]
@@ -319,10 +318,10 @@ def _exists_dir(path: str) -> bool:
 
 # Copy functions from serialize_utils.py to avoid circular imports
 
-import yaml
-
 
 def _load_yaml(path: str) -> Dict[str, Any]:
+    import yaml
+
     path = os.path.abspath(path)
     if not _exists_file(path):
         return dict()
@@ -331,6 +330,8 @@ def _load_yaml(path: str) -> Dict[str, Any]:
 
 
 def _save_yaml(obj: Any, path: str, sort_keys: bool = False, indent: int = 4):
+    import yaml
+
     path = os.path.abspath(path)
     if os.path.dirname(path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -367,7 +368,10 @@ class ConfigManager:
                 f"Local configuration directory is the same as the root directory: {self.local}. This may cause issues with configuration management. ConfigManager will not load the configuration. Use `set_cwd` to set a different working directory. Otherwise using this class may lead to unexpected errors."
             )
         else:
-            self.load()
+            self._config = None
+            self._system_config = None
+            self._global_config = None
+            self._local_config = None
 
     def _find_local(self) -> str:
         """\
@@ -610,23 +614,10 @@ class ConfigManager:
 HEAVEN_CM = ConfigManager(name="ahvn", package="ahvn")
 
 
-def ahvn_resource(*args: List[str]) -> str:
-    """\
-    Get the path to a resource file in the AHVN package `resources` directory.
-
-    Args:
-        *args (List[str]): The path components to the resource file.
-
-    Returns:
-        str: The absolute path to the resource file.
-    """
-    return HEAVEN_CM.resource(*args)
-
-
 import re
 
 
-def hpj(*args: List[str], abs: bool = False) -> str:
+def hpj(*args: List[str], abs: bool = False, cm: Optional[ConfigManager] = None) -> str:
     """\
     Join a list of strings into a path. Platform-agnostic. Spaces and trailing slashes are stripped from each argument.
     The following characters will be expanded:
@@ -637,6 +628,7 @@ def hpj(*args: List[str], abs: bool = False) -> str:
     Args:
         *args: Components of the path to join. Each argument should be a string.
         abs (bool, optional): If True, returns the absolute path. Defaults to False.
+        cm (Optional[ConfigManager]): The configuration manager to use for resource and local directory resolution. Defaults to `HEAVEN_CM`.
 
     Returns:
         str: The joined, normalized path. Expands '~' to the user's home directory.
@@ -662,11 +654,13 @@ def hpj(*args: List[str], abs: bool = False) -> str:
     args = [arg.strip() for arg in args if (arg is not None) and arg.strip()]
     if len(args) == 0:
         return None
+    if cm is None:
+        cm = HEAVEN_CM
     args = lflat(re.split(r"(&)(/)?", arg) for arg in args)
-    args = [ahvn_resource() if arg == "&" else arg for arg in args]
+    args = [cm.resource() if arg == "&" else arg for arg in args]
     args = [arg.rstrip(" /").strip() for arg in args if arg and arg.rstrip(" /").strip()]
     args = lflat(re.split(r"(>)(/)?", arg) for arg in args)
-    args = [HEAVEN_CM.local_dir if arg == ">" else arg for arg in args]
+    args = [cm.local_dir if arg == ">" else arg for arg in args]
     args = [arg.rstrip(" /").strip() for arg in args if arg and arg.rstrip(" /").strip()]
     path = os.path.expanduser(os.path.join(*[arg for arg in args if arg]))
     return os.path.normpath(path if not abs else os.path.abspath(path))

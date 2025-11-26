@@ -102,10 +102,10 @@ def test_toolspec_conversions(source: str, destination: str):
 
     if destination == "jsonschema":
         schema = spec.to_jsonschema()
-        assert schema["name"] == "sample_tool"
-        assert schema["parameters"]["properties"]["left"]["type"] == "integer"
-        assert schema["parameters"]["properties"]["right"]["default"] == 10
-        assert schema["strict"] is True
+        assert schema["function"]["name"] == "sample_tool"
+        assert schema["function"]["parameters"]["properties"]["left"]["type"] == "integer"
+        assert schema["function"]["parameters"]["properties"]["right"]["default"] == 10
+        assert schema["function"]["strict"] is True
     elif destination == "mcp":
         mcp_tool = spec.to_mcp()
         assert isinstance(mcp_tool, MCPTool)
@@ -226,13 +226,14 @@ class TestFibonacciToolSpec:
         schema = fib_spec.to_jsonschema()
 
         # Test basic schema structure
-        assert schema["name"] == "fibonacci"
-        assert schema["strict"] is True
-        assert "parameters" in schema
-        assert schema["parameters"]["type"] == "object"
+        assert schema["type"] == "function"
+        assert schema["function"]["name"] == "fibonacci"
+        assert schema["function"]["strict"] is True
+        assert "parameters" in schema["function"]
+        assert schema["function"]["parameters"]["type"] == "object"
 
         # Test parameter definition
-        properties = schema["parameters"]["properties"]
+        properties = schema["function"]["parameters"]["properties"]
         assert "n" in properties
         assert properties["n"]["type"] == "integer"
         # Description is extracted from the docstring when parse_docstring=True
@@ -241,7 +242,7 @@ class TestFibonacciToolSpec:
         assert "non-negative integer" in description
 
         # Test required parameters
-        assert "n" in schema["parameters"]["required"]
+        assert "n" in schema["function"]["parameters"]["required"]
 
     def test_fibonacci_mcp_conversion(self):
         """Test conversion to MCP tool format."""
@@ -331,7 +332,7 @@ def fibonacci(n: int) -> int:
 
         # Test all conversion methods
         json_schema = fib_spec.to_jsonschema()
-        assert json_schema["name"] == "fibonacci"
+        assert json_schema["function"]["name"] == "fibonacci"
 
         mcp_tool = fib_spec.to_mcp()
         assert mcp_tool.name == "fibonacci"
@@ -378,7 +379,7 @@ def fibonacci(n: int) -> int:
 
         # Test that all conversion methods work
         json_schema = spec.to_jsonschema()
-        assert json_schema["name"] == "fibonacci"
+        assert json_schema["function"]["name"] == "fibonacci"
 
         mcp_tool = spec.to_mcp()
         assert mcp_tool.name == "fibonacci"

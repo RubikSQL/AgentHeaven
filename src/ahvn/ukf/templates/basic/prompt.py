@@ -1,6 +1,7 @@
 __all__ = [
     "PromptUKFT",
     "prompt_composer",
+    "prompt_list_composer",
 ]
 
 from .resource import ResourceUKFT, list_composer
@@ -12,7 +13,7 @@ from ....utils.basic.config_utils import hpj, HEAVEN_CM
 from ....utils.basic.file_utils import exists_file, get_file_basename, has_file_ext
 from ....utils.basic.hash_utils import md5hash, fmt_hash
 
-from typing import Union, Set, Optional, List, Dict, Any
+from typing import Union, Set, Optional, List, Dict, Any, ClassVar
 from pydantic import Field, field_validator
 from jinja2 import Environment
 
@@ -106,23 +107,7 @@ class PromptUKFT(ResourceUKFT):
         ... )
     """
 
-    type: UKFShortTextType = Field(
-        default="prompt",
-        description=(
-            "Knowledge category for routing and processing. For example: 'experience', 'knowledge', 'resource'. "
-            "A major classifier used by systems to handle different knowledge types appropriately. Typically have different classes and `content_composers`."
-        ),
-        frozen=True,
-    )
-
-    @field_validator("tags", mode="after")
-    @classmethod
-    def _ukf_prompt_type_tag(cls, tags) -> Set[str]:
-        if isinstance(tags, list):
-            tags = set(tags)
-        elif not isinstance(tags, set):
-            tags = set() if tags is None else {tags} if isinstance(tags, str) else set(tags)
-        return tags.union(ptags(UKF_TYPE="prompt"))
+    type_default: ClassVar[str] = "prompt"
 
     @classmethod
     def from_path(

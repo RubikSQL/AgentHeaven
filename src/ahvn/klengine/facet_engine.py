@@ -127,8 +127,24 @@ class FacetKLEngine(BaseKLEngine):
         else:
             return DatabaseKLStore.__len__(self)
 
+    def _parse_orderby(self, stmt, orderby: Iterable[str]):
+        for field in orderby:
+            desc = field.startswith("-")
+            field_name = field[1:] if desc else field
+            column = getattr(self.adapter.main, field_name, None)
+            if column is None:
+                raise ValueError(f"Order by field '{field_name}' not found in schema.")
+            stmt = stmt.order_by(column.desc() if desc else column.asc())
+        return stmt
+
     def _search_facet(
-        self, topk: Optional[int] = None, offset: Optional[int] = None, include: Optional[Iterable[str]] = None, *args, **kwargs
+        self,
+        topk: Optional[int] = None,
+        offset: Optional[int] = None,
+        orderby: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
+        *args,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """\
         Perform a faceted search using ORM-like filter expressions.
@@ -141,6 +157,8 @@ class FacetKLEngine(BaseKLEngine):
                 If None, returns all matching results. Defaults to None.
             offset (Optional[int]): Number of results to skip (SQL OFFSET).
                 If None, starts from the first result. Defaults to None.
+            orderby (Optional[Iterable[str]]): List of fields to order the results by.
+                Each field can be prefixed with '-' for descending order. Defaults to None (no specific order).
             include (Optional[Iterable[str]]): The keys to include in the search results.
                 Supported keys include:
                 - 'id': The unique identifier of the KL (BaseUKF.id).
@@ -186,6 +204,8 @@ class FacetKLEngine(BaseKLEngine):
             stmt = select(self.adapter.main)
             if facet is not None:
                 stmt = stmt.where(facet)
+            if orderby is not None:
+                stmt = self._parse_orderby(stmt, orderby)
             if offset is not None:
                 stmt = stmt.offset(offset)
             if topk is not None:
@@ -205,6 +225,8 @@ class FacetKLEngine(BaseKLEngine):
             stmt = select(self.adapter.main.id)
             if facet is not None:
                 stmt = stmt.where(facet)
+            if orderby is not None:
+                stmt = self._parse_orderby(stmt, orderby)
             if offset is not None:
                 stmt = stmt.offset(offset)
             if topk is not None:

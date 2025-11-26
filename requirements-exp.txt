@@ -1,24 +1,30 @@
 asyncpg
 chromadb
-duckdb==1.3.2
 duckdb-engine
+duckdb==1.3.2
 fastmcp
 gdown
 ipykernel
 lancedb
+llama-index-core>=0.10
 llama-index-tools-neo4j
 llama-index-vector-stores-chroma
 llama-index-vector-stores-lancedb
 llama-index-vector-stores-milvus
 llama-index-vector-stores-postgres
-# milvus-lite   # not supported on windows
-# neo4j
-# neo4j-rust-ext
 ollama
+prettytable>=3.0
 prompt_toolkit
 psycopg2
 pyahocorasick
 pyarrow
 pymilvus
+pymongo
+pymongo>=4.0
 pymysql
 spacy
+sqlalchemy>=2.0
+sqlglot>=20.0
+# milvus-lite   # not supported on windows
+# neo4j
+# neo4j-rust-ext

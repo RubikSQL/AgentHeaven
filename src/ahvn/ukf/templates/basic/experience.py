@@ -12,7 +12,7 @@ from ....cache import CacheEntry
 from ....utils.basic.jinja_utils import load_jinja_env
 from ....utils.basic.config_utils import hpj
 
-from typing import Union, Dict, Any, Set
+from typing import Union, Dict, Any, Set, ClassVar
 from pydantic import Field, field_validator
 
 
@@ -123,24 +123,7 @@ class ExperienceUKFT(BaseUKF):
             ```
     """
 
-    type: UKFShortTextType = Field(
-        default="experience",
-        description=(
-            "Knowledge category for routing and processing. For example: 'experience', 'knowledge', 'resource'. "
-            "A major classifier used by systems to handle different knowledge types appropriately. Typically have different classes and `content_composers`."
-        ),
-        frozen=True,
-    )
-
-    @field_validator("tags", mode="after")
-    @classmethod
-    def _ukf_experience_type_tag(cls, tags) -> Set[str]:
-        # Convert to set if it's a list (from JSON deserialization)
-        if isinstance(tags, list):
-            tags = set(tags)
-        elif not isinstance(tags, set):
-            tags = set() if tags is None else {tags} if isinstance(tags, str) else set(tags)
-        return tags.union(ptags(UKF_TYPE="experience"))
+    type_default: ClassVar[str] = "experience"
 
     @classmethod
     def from_cache_entry(cls, entry: Union[Dict, CacheEntry], name=None, **updates):

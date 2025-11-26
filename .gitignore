@@ -66,6 +66,7 @@ GEMINI.md
 CLAUDE.md
 .windsurf/
 .claude/
+.prompts/
 
 # AgentHeaven
 .ahvn/

@@ -3,7 +3,6 @@ ORM utilities for database operations.
 """
 
 __all__ = [
-    "Base",
     "ExportableEntity",
     "DatabaseIdType",
     "DatabaseTextType",
@@ -14,25 +13,59 @@ __all__ = [
     "DatabaseJsonType",
     "DatabaseNfType",
     "DatabaseVectorType",
+    "get_base",
 ]
 
 from ..basic.config_utils import HEAVEN_CM
 from ..basic.hash_utils import fmt_hash
 from ..basic.serialize_utils import dumps_json, loads_json, AhvnJsonEncoder, AhvnJsonDecoder
+from ..deps import deps
 
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm.attributes import instance_state
-from sqlalchemy import insert, delete, select, bindparam, ARRAY as sql_ARRAY
-from sqlalchemy.schema import CreateTable, DropTable
-import sqlalchemy.types as sqltypes
-from sqlalchemy.dialects import postgresql as sqld_postgresql, mysql as sqld_mysql, oracle as sqld_oracle
+# Lazy load sqlalchemy components
+_sa = None
+
+
+def get_sa():
+    global _sa
+    if _sa is None:
+        _sa = deps.load("sqlalchemy")
+    return _sa
+
+
+def get_sa_orm():
+    return deps.load("sqlalchemy.orm")
+
+
+def get_sa_schema():
+    return deps.load("sqlalchemy.schema")
+
+
+def get_sa_types():
+    return deps.load("sqlalchemy.types")
+
+
+def get_sa_dialects():
+    return deps.load("sqlalchemy.dialects")
+
+
+def get_sa_dialect(name: str):
+    return deps.load(f"sqlalchemy.dialects.{name}")
+
+
 import datetime
 import calendar
 
-Base = declarative_base()
+_base = None
 
 
-class ExportableEntity(Base):
+def get_base():
+    global _base
+    if _base is None:
+        _base = get_sa_orm().declarative_base()
+    return _base
+
+
+class ExportableEntity(get_base()):
     """\
     Base class for ORM entities with SQL export capabilities.
     """
@@ -41,27 +74,27 @@ class ExportableEntity(Base):
 
     @classmethod
     def _create_stmt(cls):
-        return CreateTable(cls.__table__, if_not_exists=True)
+        return get_sa_schema().CreateTable(cls.__table__, if_not_exists=True)
 
     @classmethod
     def _drop_stmt(cls):
-        return DropTable(cls.__table__, if_exists=True)
+        return get_sa_schema().DropTable(cls.__table__, if_exists=True)
 
     @classmethod
     def _clear_stmt(cls):
-        return delete(cls)
+        return get_sa().delete(cls)
 
     @classmethod
     def _exists_stmt(cls, record_id):
-        return select(select(cls.id).where(cls.id == record_id).exists())
+        return get_sa().select(get_sa().select(cls.id).where(cls.id == record_id).exists())
 
     @classmethod
     def _get_stmt(cls, record_id):
-        return select(cls).where(cls.id == record_id)
+        return get_sa().select(cls).where(cls.id == record_id)
 
     @classmethod
     def _remove_stmt(cls, condition=None, **filters):
-        stmt = delete(cls)
+        stmt = get_sa().delete(cls)
         if condition is not None:
             stmt = stmt.where(condition)
         for col, col_value in filters.items():
@@ -76,14 +109,14 @@ class ExportableEntity(Base):
         return self._insert_stmt(False)
 
     def _insert_stmt(self, allow_skip, condition=None):
-        entity_state = instance_state(self)
+        entity_state = get_sa_orm().attributes.instance_state(self)
         values_dict = {c.key: getattr(self, c.key) for c in self.__table__.columns if c.key in entity_state.attrs}
         if allow_skip:
-            condition = condition or ~select(self.__class__.id).where(self.__class__.id == self.id).exists()
-            binds = [bindparam(k, v, type_=self.__table__.columns[k].type) for k, v in values_dict.items()]
-            select_stmt = select(*binds).where(condition)
-            return insert(self.__class__).from_select(names=list(values_dict.keys()), select=select_stmt)
-        return insert(self.__class__).values(**values_dict)
+            condition = condition or ~get_sa().select(self.__class__.id).where(self.__class__.id == self.id).exists()
+            binds = [get_sa().bindparam(k, v, type_=self.__table__.columns[k].type) for k, v in values_dict.items()]
+            select_stmt = get_sa().select(*binds).where(condition)
+            return get_sa().insert(self.__class__).from_select(names=list(values_dict.keys()), select=select_stmt)
+        return get_sa().insert(self.__class__).values(**values_dict)
 
     def _upsert_stmts(self, condition=None):
         return [self.__class__._remove_stmt(id=self.id, condition=condition), self._insert_stmt(False, condition)]
@@ -207,17 +240,17 @@ class ExportableEntity(Base):
         return self._insert_stmts(condition=condition)
 
 
-class DatabaseIdType(sqltypes.TypeDecorator):
+class DatabaseIdType(get_sa_types().TypeDecorator):
     """\
     md5hash-based Id type for database models.
     The ids are stored as strings but represent the integer hash of the original value.
     """
 
-    impl = sqltypes.String
+    impl = get_sa_types().String
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        return sqltypes.String(HEAVEN_CM.get("ukf.text.id", 63))
+        return get_sa_types().String(HEAVEN_CM.get("ukf.text.id", 63))
 
     def process_bind_param(self, ukf_value, dialect):
         return None if ukf_value is None else fmt_hash(ukf_value)
@@ -226,18 +259,18 @@ class DatabaseIdType(sqltypes.TypeDecorator):
         return None if db_value is None else int(db_value)
 
 
-class DatabaseTextType(sqltypes.TypeDecorator):
+class DatabaseTextType(get_sa_types().TypeDecorator):
     """\
     Enum-like class for standard text types.
     """
 
-    impl = sqltypes.String
+    impl = get_sa_types().String
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
         if dialect.name == "mysql" and self.length and self.length >= 16384:
-            return sqld_mysql.TEXT()
-        return sqltypes.String(self.length)
+            return get_sa_dialect("mysql").TEXT()
+        return get_sa_types().String(self.length)
 
     def process_bind_param(self, ukf_value, dialect):
         return None if ukf_value is None else str(ukf_value)
@@ -246,16 +279,16 @@ class DatabaseTextType(sqltypes.TypeDecorator):
         return None if db_value is None else str(db_value)
 
 
-class DatabaseIntegerType(sqltypes.TypeDecorator):
+class DatabaseIntegerType(get_sa_types().TypeDecorator):
     """\
     Custom Integer type for database models.
     """
 
-    impl = sqltypes.Integer
+    impl = get_sa_types().Integer
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        return sqltypes.Integer()
+        return get_sa_types().Integer()
 
     def process_bind_param(self, ukf_value, dialect):
         return None if ukf_value is None else int(ukf_value)
@@ -264,16 +297,16 @@ class DatabaseIntegerType(sqltypes.TypeDecorator):
         return None if db_value is None else int(db_value)
 
 
-class DatabaseBooleanType(sqltypes.TypeDecorator):
+class DatabaseBooleanType(get_sa_types().TypeDecorator):
     """\
     Custom Boolean type for database models.
     """
 
-    impl = sqltypes.Boolean
+    impl = get_sa_types().Boolean
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        return sqltypes.Boolean()
+        return get_sa_types().Boolean()
 
     def process_bind_param(self, ukf_value, dialect):
         return None if ukf_value is None else bool(ukf_value)
@@ -282,17 +315,17 @@ class DatabaseBooleanType(sqltypes.TypeDecorator):
         return None if db_value is None else bool(db_value)
 
 
-class DatabaseDurationType(sqltypes.TypeDecorator):
+class DatabaseDurationType(get_sa_types().TypeDecorator):
     """\
     Custom Duration type for database models.
     Stored as total seconds in the database.
     """
 
-    impl = sqltypes.Integer
+    impl = get_sa_types().Integer
     cache_ok = True
 
     def load_dialect_impl(self, dialect):
-        return sqltypes.Integer()
+        return get_sa_types().Integer()
 
     def process_bind_param(self, ukf_value, dialect):
         return None if ukf_value is None else int(ukf_value.total_seconds())
@@ -301,120 +334,128 @@ class DatabaseDurationType(sqltypes.TypeDecorator):
         return None if db_value is None else datetime.timedelta(seconds=int(db_value))
 
 
-class DatabaseJsonType(sqltypes.TypeDecorator):
+class DatabaseJsonType(get_sa_types().TypeDecorator):
     """\
     Custom Json type for database models.
     """
 
-    impl = sqltypes.String
+    impl = get_sa_types().String
     cache_ok = True
 
-    _native_dialects = {
-        "postgresql": sqld_postgresql.JSONB(),
-        "bigquery": sqltypes.JSON(),
-        "snowflake": sqltypes.JSON(),
-        "trino": sqltypes.JSON(),
-        "duckdb": sqltypes.JSON(),
-        "databricks": sqltypes.JSON(),
-        "spark": sqltypes.JSON(),
-        "presto": sqltypes.JSON(),
-    }
+    def _get_native_dialects(self):
+        return {
+            "postgresql": get_sa_dialect("postgresql").JSONB(),
+            "bigquery": get_sa_types().JSON(),
+            "snowflake": get_sa_types().JSON(),
+            "trino": get_sa_types().JSON(),
+            "duckdb": get_sa_types().JSON(),
+            "databricks": get_sa_types().JSON(),
+            "spark": get_sa_types().JSON(),
+            "presto": get_sa_types().JSON(),
+        }
 
-    _string_dialects = {
-        "sqlite": sqltypes.TEXT(),
-        "oracle": sqld_oracle.CLOB(),
-        "starrocks": sqltypes.TEXT(),
-        "hana": sqld_oracle.NCLOB(),
-        "hive": sqltypes.TEXT(),
-        # Note: mysql and mssql have JSON types, but they do not faithfully
-        # preserve very large integers during JSON serialization (e.g. >53 bits
-        # or MySQL's 64-bit limits). To avoid silent precision loss we treat
-        # them as string-backed JSON below.
-        "mysql": sqltypes.TEXT(),
-        "mssql": sqltypes.TEXT(),
-    }
+    def _get_string_dialects(self):
+        return {
+            "sqlite": get_sa_types().TEXT(),
+            "oracle": get_sa_dialect("oracle").CLOB(),
+            "starrocks": get_sa_types().TEXT(),
+            "hana": get_sa_dialect("oracle").NCLOB(),
+            "hive": get_sa_types().TEXT(),
+            # Note: mysql and mssql have JSON types, but they do not faithfully
+            # preserve very large integers during JSON serialization (e.g. >53 bits
+            # or MySQL's 64-bit limits). To avoid silent precision loss we treat
+            # them as string-backed JSON below.
+            "mysql": get_sa_types().TEXT(),
+            "mssql": get_sa_types().TEXT(),
+        }
 
     def load_dialect_impl(self, dialect):
-        if dialect.name in self._native_dialects:
-            return dialect.type_descriptor(self._native_dialects[dialect.name])
-        if dialect.name in self._string_dialects:
-            return dialect.type_descriptor(self._string_dialects[dialect.name])
-        return dialect.type_descriptor(sqltypes.String(HEAVEN_CM.get("ukf.text.long", 65535)))
+        native_dialects = self._get_native_dialects()
+        if dialect.name in native_dialects:
+            return dialect.type_descriptor(native_dialects[dialect.name])
+        string_dialects = self._get_string_dialects()
+        if dialect.name in string_dialects:
+            return dialect.type_descriptor(string_dialects[dialect.name])
+        return dialect.type_descriptor(get_sa_types().String(HEAVEN_CM.get("ukf.text.long", 65535)))
 
     def process_bind_param(self, ukf_value, dialect):
         if ukf_value is None:
             return None
-        if dialect.name in self._native_dialects:
+        if dialect.name in self._get_native_dialects():
             return AhvnJsonEncoder.transform(ukf_value)
-        if dialect.name in self._string_dialects:
+        if dialect.name in self._get_string_dialects():
             return dumps_json(ukf_value, indent=None)
         return dumps_json(ukf_value, indent=None)
 
     def process_result_value(self, db_value, dialect):
         if db_value is None:
             return None
-        if dialect.name in self._native_dialects:
+        if dialect.name in self._get_native_dialects():
             return AhvnJsonDecoder.transform(db_value)
-        if dialect.name in self._string_dialects:
+        if dialect.name in self._get_string_dialects():
             return loads_json(db_value)
         return loads_json(db_value)
 
 
-class DatabaseTimestampType(sqltypes.TypeDecorator):
+class DatabaseTimestampType(get_sa_types().TypeDecorator):
     """
     Custom Timestamp type that stores UTC-converted datetimes
     as either a native timestamp or a 64-bit integer.
     """
 
-    impl = sqltypes.BigInteger
+    impl = get_sa_types().BigInteger
     cache_ok = True
 
-    _native_dialects = {
-        "postgresql": sqltypes.TIMESTAMP(timezone=True),
-        "mssql": sqltypes.DATETIME(),
-        "oracle": sqltypes.TIMESTAMP(),
-        "snowflake": sqltypes.TIMESTAMP(timezone=True),
-        "bigquery": sqltypes.TIMESTAMP(),
-        "duckdb": sqltypes.TIMESTAMP(),
-        "trino": sqltypes.TIMESTAMP(),
-        "databricks": sqltypes.TIMESTAMP(),
-        "spark": sqltypes.TIMESTAMP(),
-    }
+    def _get_native_dialects(self):
+        return {
+            "postgresql": get_sa_types().TIMESTAMP(timezone=True),
+            "mssql": get_sa_types().DATETIME(),
+            "oracle": get_sa_types().TIMESTAMP(),
+            "snowflake": get_sa_types().TIMESTAMP(timezone=True),
+            "bigquery": get_sa_types().TIMESTAMP(),
+            "duckdb": get_sa_types().TIMESTAMP(),
+            "trino": get_sa_types().TIMESTAMP(),
+            "databricks": get_sa_types().TIMESTAMP(),
+            "spark": get_sa_types().TIMESTAMP(),
+        }
 
-    _integer_dialects = {
-        "sqlite": sqltypes.BigInteger(),
-        "starrocks": sqltypes.BigInteger(),
-        "hive": sqltypes.BigInteger(),
-        "presto": sqltypes.BigInteger(),
-        "hana": sqltypes.BigInteger(),
-        # Note: mysql have datetime types, but it is facing the year 2038 problem
-        # on 32-bit systems. To avoid this we treat them as integer-backed timestamps below.
-        "mysql": sqld_mysql.BIGINT(),
-    }
+    def _get_integer_dialects(self):
+        return {
+            "sqlite": get_sa_types().BigInteger(),
+            "starrocks": get_sa_types().BigInteger(),
+            "hive": get_sa_types().BigInteger(),
+            "presto": get_sa_types().BigInteger(),
+            "hana": get_sa_types().BigInteger(),
+            # Note: mysql have datetime types, but it is facing the year 2038 problem
+            # on 32-bit systems. To avoid this we treat them as integer-backed timestamps below.
+            "mysql": get_sa_dialect("mysql").BIGINT(),
+        }
 
     def load_dialect_impl(self, dialect):
-        if dialect.name in self._native_dialects:
-            return dialect.type_descriptor(self._native_dialects[dialect.name])
-        if dialect.name in self._integer_dialects:
-            return dialect.type_descriptor(self._integer_dialects[dialect.name])
-        return dialect.type_descriptor(sqltypes.BigInteger())
+        native_dialects = self._get_native_dialects()
+        if dialect.name in native_dialects:
+            return dialect.type_descriptor(native_dialects[dialect.name])
+        integer_dialects = self._get_integer_dialects()
+        if dialect.name in integer_dialects:
+            return dialect.type_descriptor(integer_dialects[dialect.name])
+        return dialect.type_descriptor(get_sa_types().BigInteger())
 
     def process_bind_param(self, ukf_value, dialect):
         if ukf_value is None:
             return None
-        if dialect is None or dialect.name not in self._native_dialects:
+        if dialect is None or dialect.name not in self._get_native_dialects():
             return int(calendar.timegm(ukf_value.utctimetuple()))
         return ukf_value
 
     def process_result_value(self, db_value, dialect):
         if db_value is None:
             return None
-        if dialect is not None and dialect.name in self._native_dialects:
+        if dialect is not None and dialect.name in self._get_native_dialects():
             return db_value
         return datetime.datetime.fromtimestamp(db_value, tz=datetime.timezone.utc)
 
 
-class DatabaseNfType(sqltypes.TypeDecorator):
+class DatabaseNfType(get_sa_types().TypeDecorator):
     """
     A virtual type that stores data as JSON but includes normalization metadata.
 
@@ -457,7 +498,7 @@ class DatabaseNfType(sqltypes.TypeDecorator):
         return set(DatabaseJsonType().process_result_value(db_value, dialect))
 
 
-class DatabaseVectorType(sqltypes.TypeDecorator):
+class DatabaseVectorType(get_sa_types().TypeDecorator):
     """Custom Vector type for database models with pgvector support.
 
     Stores vector data as native PostgreSQL arrays when available (compatible with pgvector),
@@ -483,19 +524,23 @@ class DatabaseVectorType(sqltypes.TypeDecorator):
     impl = DatabaseJsonType
     cache_ok = True
 
-    _native_dialects = {
-        "postgresql": sql_ARRAY(sqltypes.Float()),
-    }
+    @property
+    def _native_dialects(self):
+        return {
+            "postgresql": get_sa().ARRAY(get_sa_types().Float()),
+        }
 
-    _json_dialects = {
-        "sqlite": sqltypes.TEXT(),
-        "mysql": sqltypes.TEXT(),
-        "mssql": sqltypes.TEXT(),
-        "oracle": sqld_oracle.CLOB(),
-        "starrocks": sqltypes.TEXT(),
-        "hana": sqld_oracle.NCLOB(),
-        "hive": sqltypes.TEXT(),
-    }
+    @property
+    def _json_dialects(self):
+        return {
+            "sqlite": get_sa_types().TEXT(),
+            "mysql": get_sa_types().TEXT(),
+            "mssql": get_sa_types().TEXT(),
+            "oracle": get_sa_dialects().oracle.CLOB(),
+            "starrocks": get_sa_types().TEXT(),
+            "hana": get_sa_dialects().oracle.NCLOB(),
+            "hive": get_sa_types().TEXT(),
+        }
 
     def load_dialect_impl(self, dialect):
         if dialect.name in self._native_dialects:

@@ -1,6 +1,13 @@
+from __future__ import annotations
+
 __all__ = [
     "VectorKLStore",
 ]
+
+from typing import Any, Generator, Iterable, List, Optional, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from llama_index.core.schema import TextNode
 
 from ..adapter.vdb import VdbUKFAdapter
 from ..ukf.base import BaseUKF
@@ -11,10 +18,6 @@ from ..utils.vdb.base import VectorDatabase
 from .base import BaseKLStore
 
 logger = get_logger(__name__)
-
-
-from typing import Any, Generator, Iterable, List, Optional, Callable
-from llama_index.core.schema import TextNode
 
 
 class VectorKLStore(BaseKLStore):
@@ -73,6 +76,8 @@ class VectorKLStore(BaseKLStore):
         # Insert a dummy record to specify the schema
         dummy = BaseUKF(name="__dummy__", type="dummy")
         self.vdb.vdb.add(self._batch_convert([dummy]))
+        self.vdb.flush()
+        # Remove the dummy node
         self._remove(dummy.id)
 
     def _has(self, key: int) -> bool:

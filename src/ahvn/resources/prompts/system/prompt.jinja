@@ -29,8 +29,12 @@ Dependency:
 {% endif %}
 {% if descriptions is defined and descriptions is not none and descriptions | length > 0 %}
 {% set title %}{% trans %}Task Descriptions{% endtrans %}{% endset %}
-{% set translated_descriptions = descriptions | map('tr') | list %}
-{% with blocks=translated_descriptions, title=title, depth=2, bullet="-" %}
+{% set ns = namespace(translated_descriptions=[]) %}
+{% for desc in descriptions %}
+{% set translated_lines = desc.split('\n') | map('tr') | join('\n') %}
+{% set ns.translated_descriptions = ns.translated_descriptions + [translated_lines] %}
+{% endfor %}
+{% with blocks=ns.translated_descriptions, title=title, depth=2, bullet="-" %}
 {% include "system/block_list.jinja" %}
 {% endwith %}
 
@@ -50,8 +54,12 @@ Dependency:
 {% endif %}
 {% if instructions is defined and instructions is not none and instructions | length > 0 %}
 {% set title %}{% trans %}Instructions{% endtrans %}{% endset %}
-{% set translated_instructions = instructions | map('tr') | list %}
-{% with blocks=translated_instructions, title=title, depth=2, bullet="-" %}
+{% set ns = namespace(translated_instructions=[]) %}
+{% for instr in instructions %}
+{% set translated_lines = instr.split('\n') | map('tr') | join('\n') %}
+{% set ns.translated_instructions = ns.translated_instructions + [translated_lines] %}
+{% endfor %}
+{% with blocks=ns.translated_instructions, title=title, depth=2, bullet="-" %}
 {% include "system/block_list.jinja" %}
 {% endwith %}
 

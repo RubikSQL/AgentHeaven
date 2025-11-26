@@ -52,16 +52,16 @@ conda install -c conda-forge agent-heaven
 
 ```bash
 # pip
-pip install "agent-heaven[exp,gui,dev]"
+pip install "agent-heaven[exp,dev]"
 
 # uv
-uv pip install "agent-heaven[exp,gui,dev]"
+uv pip install "agent-heaven[exp,dev]"
 
 # poetry
 poetry add agent-heaven --extras "exp gui dev"
 
 # conda
-conda install -c conda-forge agent-heaven[exp,gui,dev]
+conda install -c conda-forge agent-heaven[exp,dev]
 ```
 
 <br/>
@@ -150,16 +150,16 @@ ollama pull qwen3-coder:30b   # 用于代码生成
 
 ## 文档
 
-📖 **[完整文档](./docs/zh/build/html/index.html)**
+📖 **[完整文档](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/index.html)**
 
 ### 快速链接
 
-- 🚀 [介绍](./docs/zh/build/html/introduction/index.html)
-- 📋 [入门指南](./docs/zh/build/html/getting-started/index.html)
-- 💻 [CLI 指南](./docs/zh/build/html/cli-guide/index.html)
-- 🐍 [Python API](./docs/zh/build/html/python-guide/index.html)
-- 🎯 [示例应用](./docs/zh/build/html/example-applications/index.html)
-- 📚 [API 参考](./docs/zh/build/html/api_index.html)
+- 🚀 [介绍](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/introduction/index.html)
+- 📋 [入门指南](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/getting-started/index.html)
+- 💻 [CLI 指南](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/cli-guide/index.html)
+- 🐍 [Python API](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/python-guide/index.html)
+- 🎯 [示例应用](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/example-applications/index.html)
+- 📚 [API 参考](https://rubiksql.github.io/AgentHeaven-docs/zh/build/html/api_index.html)
 
 ### 本地构建文档
 
@@ -184,7 +184,7 @@ bash scripts/docs.bash en zh -s --no-build
 
 ## 贡献
 
-我们欢迎贡献！请查看我们的[贡献指南](./docs/zh/source/contribution/index.md)了解如何开始。
+我们欢迎贡献！请查看我们的[贡献指南](https://rubiksql.github.io/AgentHeaven-docs/zh/source/contribution/index.md)了解如何开始。
 
 <br/>
 

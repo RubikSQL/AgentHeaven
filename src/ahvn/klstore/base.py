@@ -2,13 +2,19 @@ __all__ = [
     "BaseKLStore",
 ]
 
-from ..utils.basic import *
+
+from ..utils.basic.misc_utils import unique
+from ..utils.basic.config_utils import HEAVEN_CM
+from ..utils.basic.log_utils import get_logger
 
 logger = get_logger(__name__)
 
 from ..ukf.base import BaseUKF
 
 from ..tool.mixin import ToolRegistry
+
+from abc import ABC, abstractmethod
+from typing import Optional, Union, Iterable, Any, Generator, Callable
 
 
 class BaseKLStore(ToolRegistry, ABC):
@@ -128,6 +134,31 @@ class BaseKLStore(ToolRegistry, ABC):
             key = int(key)
         kl = self._get(key, default=...)
         return default if kl is ... else kl
+
+    def _batch_get(self, keys: Iterable[int], default: Any = ...) -> list:
+        return [self._get(key, default=default) for key in keys]
+
+    def batch_get(self, keys: Iterable[Union[int, str, BaseUKF]], default: Any = ...) -> list:
+        """\
+        Retrieves multiple KLs by their keys.
+        The default batch get is not optimized nor parallelized.
+        It is recommended to override `_batch_get` for better performance.
+
+        Args:
+            keys (Iterable[Union[int, str, BaseUKF]]): The keys or BaseUKF instances to retrieve.
+            default (Any): The default value to return if a KL is not found.
+
+        Returns:
+            list: A list of retrieved KL instances. Missing KLs are replaced with default.
+        """
+        parsed_keys = []
+        for key in keys:
+            if isinstance(key, BaseUKF):
+                key = key.id
+            if isinstance(key, str):
+                key = int(key)
+            parsed_keys.append(key)
+        return self._batch_get(parsed_keys, default=default)
 
     @abstractmethod
     def _upsert(self, kl: BaseUKF, **kwargs):

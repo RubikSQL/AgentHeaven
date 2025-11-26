@@ -15,7 +15,6 @@ __all__ = [
     "transpile_sql",
     "load_builtin_sql",
     "SQLProcessor",
-    "AhvnDatabaseColumnType",
 ]
 
 from ..basic.log_utils import get_logger
@@ -25,10 +24,31 @@ from ..basic.debug_utils import raise_mismatch
 from ..basic.cmd_utils import cmd
 from ...utils.basic.parser_utils import parse_keys
 
-# Direct imports instead of lazy loading
-from sqlalchemy import create_engine, text
-from sqlalchemy.engine import make_url
-from sqlglot import transpile, parse
+from ..deps import deps
+
+_sa = None
+
+
+def get_sa():
+    global _sa
+    if _sa is None:
+        _sa = deps.load("sqlalchemy")
+    return _sa
+
+
+def get_sa_engine():
+    return deps.load("sqlalchemy.engine")
+
+
+_sqlglot = None
+
+
+def get_sqlglot():
+    global _sqlglot
+    if _sqlglot is None:
+        _sqlglot = deps.load("sqlglot")
+    return _sqlglot
+
 
 import os
 from typing import Dict, Any, Optional, Tuple, List
@@ -165,10 +185,10 @@ def create_database_engine(config: Dict[str, Any], conn_args: Optional[Dict[str,
         try:
             create_database(config | conn_args, engine_kwargs=engine_kwargs)
         except Exception as e:
-            safe_url = make_url(url).render_as_string(hide_password=True) if url else "unknown"
+            safe_url = get_sa_engine().make_url(url).render_as_string(hide_password=True) if url else "unknown"
             logger.warning(f"Failed to autocreate database for url={safe_url}: {e}")
 
-    return create_engine(url, **engine_kwargs)
+    return get_sa().create_engine(url, **engine_kwargs)
 
 
 def create_database(config: Dict[str, Any], engine_kwargs: Optional[Dict[str, Any]] = None) -> None:
@@ -264,12 +284,12 @@ def _create_server_database(config: Dict[str, Any], engine_kwargs: Dict[str, Any
     tmp_engine_kwargs.setdefault("pool_timeout", 10)
     tmp_engine_kwargs.setdefault("pool_recycle", 3600)
 
-    tmp_engine = create_engine(maintenance_url, **tmp_engine_kwargs)
+    tmp_engine = get_sa().create_engine(maintenance_url, **tmp_engine_kwargs)
 
     try:
         with tmp_engine.connect() as conn:
             # Check if database exists
-            exists_q = text(exists_query)
+            exists_q = get_sa().text(exists_query)
             res = conn.execute(exists_q, {"name": database_name}).scalar()
 
             if not res:
@@ -282,14 +302,14 @@ def _create_server_database(config: Dict[str, Any], engine_kwargs: Dict[str, Any
                         # PostgreSQL needs separate connection for DDL
                         ddl_conn = tmp_engine.connect()
                         try:
-                            ddl_conn.execute(text("COMMIT"))
-                            ddl_conn.execute(text(create_q))
+                            ddl_conn.execute(get_sa().text("COMMIT"))
+                            ddl_conn.execute(get_sa().text(create_q))
                             logger.info(f"Created database '{database_name}'")
                         finally:
                             ddl_conn.close()
                     else:
                         # MySQL can use the same connection
-                        conn.execute(text(create_q))
+                        conn.execute(get_sa().text(create_q))
                         logger.info(f"Created database '{database_name}'")
                 except Exception as ddl_ex:
                     logger.error(f"Failed to create database '{database_name}': {ddl_ex}")
@@ -355,7 +375,7 @@ def split_sqls(queries: str, dialect: str = "sqlite"):
     try:
         if not queries.strip():  # Handle empty or whitespace-only strings
             return []
-        parsed = parse(queries, dialect=dialect)
+        parsed = get_sqlglot().parse(queries, dialect=dialect)
         return [s.sql().strip() for s in parsed if s is not None]
     except Exception as e:
         raise ValueError(f"Failed to split SQL queries: {e}.")
@@ -382,7 +402,7 @@ def transpile_sql(query: str, src_dialect: str = "sqlite", tgt_dialect: str = "s
         dialect_map = {"postgresql": "postgres"}
         src = dialect_map.get(src_dialect, src_dialect)
         tgt = dialect_map.get(tgt_dialect, tgt_dialect)
-        return transpile(query, read=src, write=tgt, comments=False)[0]
+        return get_sqlglot().transpile(query, read=src, write=tgt, comments=False)[0]
     except Exception as e:
         raise ValueError(f"Failed to transpile query from {src_dialect} to {tgt_dialect}: {e}.")
 
@@ -580,17 +600,3 @@ class SQLProcessor:
         else:
             # No parameter placeholder found
             return query, {}
-
-
-from enum import Enum
-
-
-class AhvnDatabaseColumnType(Enum):
-    LongText = "LONGTEXT"
-    DateTime = "DATETIME"
-    Identifier = "IDENTIFIER"
-    Categorical = "CATEGORICAL"
-    Integer = "INTEGER"
-    Float = "FLOAT"
-    Text = "TEXT"
-    Unknown = "UNKNOWN"

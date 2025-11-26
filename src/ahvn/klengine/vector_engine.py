@@ -1,19 +1,23 @@
 """Universal vector KL engine implementation."""
 
+from __future__ import annotations
+
 __all__ = [
     "VectorKLEngine",
 ]
+from typing import Any, Dict, Iterable, List, Optional, Generator, Tuple, TYPE_CHECKING
 
-from typing import Any, Dict, Iterable, List, Optional, Generator, Tuple
-from llama_index.core.vector_stores.types import VectorStoreQuery
+from ..utils.deps import deps
+
+if TYPE_CHECKING:
+    from llama_index.core.vector_stores.types import VectorStoreQuery
+    from llama_index.core.schema import TextNode
 
 from ..utils.vdb.compiler import VectorCompiler
 from ..utils.klop import KLOp
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
 from ..utils.basic.debug_utils import raise_mismatch
-
-logger = get_logger(__name__)
 
 from .base import BaseKLEngine
 from ..ukf.base import BaseUKF
@@ -22,7 +26,11 @@ from ..klstore.vdb_store import VectorKLStore
 from ..utils.vdb.base import VectorDatabase
 from ..llm.base import LLM
 
-from llama_index.core.schema import TextNode
+logger = get_logger(__name__)
+
+
+def get_llama_index_types():
+    return deps.load("llama_index.core.vector_stores.types")
 
 
 class VectorKLEngine(BaseKLEngine):
@@ -181,7 +189,7 @@ class VectorKLEngine(BaseKLEngine):
         else:
             query_key, query_embedding = self.vdb.q_encode_embed(query)
         fetchk = max(fetchk or topk, topk, 0)  # TODO: throw in fetchk somewhere in VDB query
-        query_stmt = VectorStoreQuery(
+        query_stmt: VectorStoreQuery = get_llama_index_types().VectorStoreQuery(
             query_embedding=query_embedding,
             similarity_top_k=topk,
             filters=metadata_filters,

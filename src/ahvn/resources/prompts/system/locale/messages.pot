@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-11-11 14:40+0800\n"
+"POT-Creation-Date: 2025-11-25 16:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,73 +17,73 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/_locales.jinja:1
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:1
 msgid ""
 "You are a helpful AI assistant. Your task is to complete a task given its"
 " description, examples, and new inputs. Infer the task's logic from the "
 "examples and apply it to the new inputs."
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/_locales.jinja:2
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:2
 msgid "Keep your reasoning or response as brief as possible."
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/_locales.jinja:3
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:3
 msgid "The final answer must be a string that supports python `repr`."
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/_locales.jinja:4
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:4
 msgid "Wrap the final answer in `<output></output>` tags."
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/block_code.jinja:18
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/block_code.jinja:18
 msgid "File:"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/block_list.jinja:37
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/block_list.jinja:37
 #, python-format
 msgid "... (omitting %(cnt)s record)"
 msgid_plural "... (omitting %(cnt)s records)"
 msgstr[0] ""
 msgstr[1] ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/block_list.jinja:43
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/block_list.jinja:43
 msgid "None"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt.jinja:31
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:31
 msgid "Task Descriptions"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt.jinja:44
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:49
 msgid "Examples"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt.jinja:51
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:56
 msgid "Instructions"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt.jinja:64
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:74
 msgid "New Instance"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt_instance.jinja:30
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:30
 msgid "Inputs:"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt_instance.jinja:44
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:44
 msgid "Hints:"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt_instance.jinja:52
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:52
 msgid "Output:"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt_instance.jinja:66
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:66
 msgid "Expected:"
 msgstr ""
 
-#: /Users/magolor/Utils/AgentHeaven/src/ahvn/resources/prompts/system/prompt_instance.jinja:80
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:80
 msgid "Notes:"
 msgstr ""
 

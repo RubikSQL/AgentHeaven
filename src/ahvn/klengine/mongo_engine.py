@@ -495,8 +495,33 @@ class MongoKLEngine(BaseKLEngine):
         else:
             MongoKLStore._clear(self)
 
+    def _parse_orderby(self, orderby: Iterable[str]) -> Dict[str, int]:
+        sort_stage = {}
+        fields = set(self.adapter.fields)
+        for field in orderby:
+            desc = field.startswith("-")
+            field_name = field[1:] if desc else field
+
+            raise_mismatch(
+                fields,
+                got=field_name,
+                name="orderby field",
+                mode="raise",
+                comment="Check `include`, `exclude` or BaseUKF definition.",
+            )
+
+            sort_stage[field_name] = -1 if desc else 1
+        return sort_stage
+
     def _search_vector(
-        self, query: str = None, topk: int = -1, fetchk: Optional[int] = -1, include: Optional[Iterable[str]] = None, *args, **kwargs
+        self,
+        query: str = None,
+        topk: int = -1,
+        fetchk: Optional[int] = -1,
+        orderby: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
+        *args,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """\
         Perform a hybrid vector similarity + filter search on MongoDB.
@@ -585,6 +610,10 @@ class MongoKLEngine(BaseKLEngine):
             query_pipeline.append({"$addFields": {"score": {"$meta": "vectorSearchScore"}}})
         if mql_filters:
             query_pipeline.append({"$match": mql_filters})
+        if orderby is not None:
+            sort_stage = self._parse_orderby(orderby)
+            if sort_stage:
+                query_pipeline.append({"$sort": sort_stage})
         if topk > 0:
             query_pipeline.append({"$limit": topk})
         try:
@@ -609,12 +638,21 @@ class MongoKLEngine(BaseKLEngine):
         ]
 
     def _search(
-        self, query: str = None, topk: int = -1, fetchk: Optional[int] = -1, include: Optional[Iterable[str]] = None, *args, **kwargs
+        self,
+        query: str = None,
+        topk: int = -1,
+        fetchk: Optional[int] = -1,
+        orderby: Optional[Iterable[str]] = None,
+        include: Optional[Iterable[str]] = None,
+        *args,
+        **kwargs,
     ) -> List[Dict[str, Any]]:
         """Alias for _search_vector for default search behavior."""
-        return self._search_vector(query=query, topk=topk, fetchk=fetchk, include=include, *args, **kwargs)
+        return self._search_vector(query=query, topk=topk, fetchk=fetchk, orderby=orderby, include=include, *args, **kwargs)
 
-    def _search_mql(self, mql: Dict[str, Any], include: Optional[Iterable[str]] = None, *args, **kwargs) -> List[Dict[str, Any]]:
+    def _search_mql(
+        self, mql: Dict[str, Any], orderby: Optional[Iterable[str]] = None, include: Optional[Iterable[str]] = None, *args, **kwargs
+    ) -> List[Dict[str, Any]]:
         """\
         Perform a raw MongoDB Query Language (MQL) search.
 
@@ -625,6 +663,8 @@ class MongoKLEngine(BaseKLEngine):
         Args:
             mql (Dict[str, Any]): Raw MongoDB query dict.
                 Example: {"type": "person", "age": {"$gt": 18}}
+            orderby (Optional[Iterable[str]]): List of fields to order the results by.
+                Each field can be prefixed with '-' for descending order. Defaults to None (no specific order).
             include (Optional[Iterable[str]]): The keys to include in the search results.
                 Supported keys include:
                 - 'id': The unique identifier of the KL (BaseUKF.id).
@@ -650,6 +690,10 @@ class MongoKLEngine(BaseKLEngine):
             )
         # Wrap the MQL filter in a $match stage for aggregation pipeline
         pipeline = [{"$match": mql}] if mql else []
+        if orderby is not None:
+            sort_stage = self._parse_orderby(orderby)
+            if sort_stage:
+                pipeline.append({"$sort": sort_stage})
         results = self.mdb.conn.aggregate(pipeline)
         return [
             {

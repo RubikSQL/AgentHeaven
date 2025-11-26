@@ -57,11 +57,14 @@ class UKFTypeRegistry:
                        the type is already registered.
         """
         # Get the default type value from the class
-        if "type" not in ukft_class.model_fields:
-            raise ValueError(f"Class {ukft_class.__name__} must have a 'type' field to be registered")
+        type_value = getattr(ukft_class, "type_default", None)
 
-        type_field = ukft_class.model_fields["type"]
-        type_value = type_field.default
+        if type_value is None:
+            if "type" not in ukft_class.model_fields:
+                raise ValueError(f"Class {ukft_class.__name__} must have a 'type' field or 'type_default' to be registered")
+
+            type_field = ukft_class.model_fields["type"]
+            type_value = type_field.default
 
         if type_value is None:
             raise ValueError(f"Class {ukft_class.__name__} must have a default value for 'type' field")

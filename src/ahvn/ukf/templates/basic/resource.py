@@ -16,7 +16,7 @@ from ....utils.basic.log_utils import get_logger
 
 logger = get_logger(__name__)
 
-from typing import Union, Dict, Any, Set, Optional, List
+from typing import Union, Dict, Any, Set, Optional, List, ClassVar
 from pydantic import Field, field_validator
 import os
 import tempfile
@@ -210,24 +210,7 @@ class ResourceUKFT(BaseUKF):
             ```
     """
 
-    type: UKFShortTextType = Field(
-        default="resource",
-        description=(
-            "Knowledge category for routing and processing. For example: 'experience', 'knowledge', 'resource'. "
-            "A major classifier used by systems to handle different knowledge types appropriately. Typically have different classes and `content_composers`."
-        ),
-        frozen=True,
-    )
-
-    @field_validator("tags", mode="after")
-    @classmethod
-    def _ukf_resource_type_tag(cls, tags) -> Set[str]:
-        # Convert to set if it's a list (from JSON deserialization)
-        if isinstance(tags, list):
-            tags = set(tags)
-        elif not isinstance(tags, set):
-            tags = set() if tags is None else {tags} if isinstance(tags, str) else set(tags)
-        return tags.union(ptags(UKF_TYPE="resource"))
+    type_default: ClassVar[str] = "resource"
 
     @classmethod
     def from_path(cls, path: str, name: Optional[str] = None, keep_path: bool = True, **updates):

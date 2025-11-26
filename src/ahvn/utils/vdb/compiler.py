@@ -5,23 +5,20 @@ This module provides functionality to compile KLOp JSON IR expressions
 into LlamaIndex MetadataFilters for vector database backends.
 """
 
+from __future__ import annotations
+
 __all__ = ["VectorCompiler"]
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING
 
-try:
+from ..deps import deps
+
+if TYPE_CHECKING:
     from llama_index.core.vector_stores import (
         MetadataFilters,
         MetadataFilter,
         ExactMatchFilter,
     )
-
-    LLAMAINDEX_AVAILABLE = True
-except ImportError:
-    LLAMAINDEX_AVAILABLE = False
-    MetadataFilters = None
-    MetadataFilter = None
-    ExactMatchFilter = None
 
 from ..basic.log_utils import get_logger
 from ..basic.debug_utils import error_str
@@ -29,11 +26,15 @@ from ..basic.debug_utils import error_str
 logger = get_logger(__name__)
 
 
+def get_llama_index_filters():
+    return deps.load("llama_index.core.vector_stores")
+
+
 class VectorCompiler:
     """Compiler that converts KLOp JSON IR to LlamaIndex filters."""
 
     @staticmethod
-    def _to_filters(*expr_filters, op="and") -> "MetadataFilters":
+    def _to_filters(*expr_filters, op="and") -> MetadataFilters:
         """Combine multiple filter expressions into MetadataFilters.
 
         Args:
@@ -43,6 +44,11 @@ class VectorCompiler:
         Returns:
             MetadataFilters object combining all filters
         """
+        filters_mod = get_llama_index_filters()
+        _MetadataFilters = filters_mod.MetadataFilters
+        _MetadataFilter = filters_mod.MetadataFilter
+        _ExactMatchFilter = filters_mod.ExactMatchFilter
+
         normalized = []
         for expr_filter in expr_filters:
             if expr_filter is None:
@@ -51,18 +57,18 @@ class VectorCompiler:
                 # Recursively convert list elements and add each to normalized
                 for item in expr_filter:
                     if item is not None:
-                        if isinstance(item, (MetadataFilter, ExactMatchFilter, MetadataFilters)):
+                        if isinstance(item, (_MetadataFilter, _ExactMatchFilter, _MetadataFilters)):
                             normalized.append(item)
-            elif isinstance(expr_filter, MetadataFilters):
+            elif isinstance(expr_filter, _MetadataFilters):
                 normalized.append(expr_filter)
-            elif isinstance(expr_filter, (ExactMatchFilter, MetadataFilter)):
+            elif isinstance(expr_filter, (_ExactMatchFilter, _MetadataFilter)):
                 normalized.append(expr_filter)
             elif isinstance(expr_filter, dict):
                 continue
-        return MetadataFilters(filters=normalized, condition=op)
+        return _MetadataFilters(filters=normalized, condition=op)
 
     @staticmethod
-    def _parse_op(key: str, op: str, val: Any) -> Union["MetadataFilter", "MetadataFilters"]:
+    def _parse_op(key: str, op: str, val: Any) -> Union[MetadataFilter, MetadataFilters]:
         """Build LlamaIndex filter expression for a specific operator.
 
         Args:
@@ -76,12 +82,16 @@ class VectorCompiler:
         Raises:
             ValueError: If operator is unknown
         """
+        filters_mod = get_llama_index_filters()
+        _MetadataFilter = filters_mod.MetadataFilter
+        _ExactMatchFilter = filters_mod.ExactMatchFilter
+
         if op == "==":
-            return ExactMatchFilter(key=key, value=val)
+            return _ExactMatchFilter(key=key, value=val)
         if op == "IN":
             if not isinstance(val, (list, tuple, set)):
                 raise ValueError("IN operator requires a list, tuple, or set of values")
-            return VectorCompiler._to_filters([ExactMatchFilter(key=key, value=v) for v in val], op="or")
+            return VectorCompiler._to_filters([_ExactMatchFilter(key=key, value=v) for v in val], op="or")
 
         llama_op = {
             "==": "==",
@@ -94,10 +104,10 @@ class VectorCompiler:
             "ILIKE": "text_match_insensitive",
             "IN": "in",
         }.get(op, "in")
-        return MetadataFilter(key=key, value=val, operator=llama_op)
+        return _MetadataFilter(key=key, value=val, operator=llama_op)
 
     @staticmethod
-    def _parse(field: Optional[str] = None, expr: Optional[Dict[str, Any]] = None) -> Optional[Union["MetadataFilter", "MetadataFilters"]]:
+    def _parse(field: Optional[str] = None, expr: Optional[Dict[str, Any]] = None) -> Optional[Union[MetadataFilter, MetadataFilters]]:
         """Recursively build LlamaIndex filter objects from filter nodes.
 
         Args:
@@ -127,11 +137,13 @@ class VectorCompiler:
                         return None  # No filter = match all
                     else:  # OR
                         # Return an empty OR filter which never matches (no alternatives)
-                        return MetadataFilters(filters=[], condition="or")
+                        filters_mod = get_llama_index_filters()
+                        return filters_mod.MetadataFilters(filters=[], condition="or")
                 return VectorCompiler._to_filters(*exprs, op=op.lower())
 
             if op == "NOT":
-                return MetadataFilters(
+                filters_mod = get_llama_index_filters()
+                return filters_mod.MetadataFilters(
                     filters=[VectorCompiler._parse(field=field, expr=val)],
                     condition="not",
                 )
@@ -149,7 +161,7 @@ class VectorCompiler:
             raise ValueError(f"Error processing expression key '{op}'.\n{expr}\n{error_str(e)}")
 
     @staticmethod
-    def compile(expr: Optional[Dict[str, Any]] = None, **kwargs) -> Optional["MetadataFilters"]:
+    def compile(expr: Optional[Dict[str, Any]] = None, **kwargs) -> Optional[MetadataFilters]:
         """Convert a KLOp JSON IR to LlamaIndex MetadataFilters.
 
         Args:
@@ -163,8 +175,7 @@ class VectorCompiler:
             ImportError: If LlamaIndex is not available
             ValueError: If filter structure is invalid
         """
-        if not LLAMAINDEX_AVAILABLE:
-            raise ImportError("LlamaIndex is required for vector compilation. " "Install it with: pip install llama-index-core")
+        get_llama_index_filters()  # Ensure LlamaIndex is available
 
         from ..klop import KLOp
 

@@ -2,7 +2,7 @@ __all__ = [
     "ORMUKFAdapter",
 ]
 
-from ahvn.utils.db.types import ExportableEntity
+from ahvn.utils.db.types import ExportableEntity, get_base
 from .base import BaseUKFAdapter
 
 from ..utils.db import *
@@ -13,8 +13,33 @@ from ..ukf.ukf_utils import tag_t
 from ..ukf.base import BaseUKF
 
 from typing import Any, Dict, Type, Iterable, List
-from sqlalchemy import Column, Index, ForeignKey
-from sqlalchemy.orm import relationship
+from ..utils.deps import deps
+
+# Lazy import sqlalchemy
+_sqlalchemy = None
+
+
+def get_sqlalchemy():
+    global _sqlalchemy
+    if _sqlalchemy is None:
+        _sqlalchemy = deps.load("sqlalchemy")
+    return _sqlalchemy
+
+
+def Column(*args, **kwargs):
+    return get_sqlalchemy().Column(*args, **kwargs)
+
+
+def Index(*args, **kwargs):
+    return get_sqlalchemy().Index(*args, **kwargs)
+
+
+def ForeignKey(*args, **kwargs):
+    return get_sqlalchemy().ForeignKey(*args, **kwargs)
+
+
+def relationship(*args, **kwargs):
+    return get_sqlalchemy().orm.relationship(*args, **kwargs)
 
 
 ORM_FIELD_TYPES = {
@@ -142,7 +167,7 @@ class ORMUKFDimEntityFactory:
             return _PRESERVED_FIELD_NAMES.get(attr, attr)
 
         attrs["alias"] = classmethod(alias)
-        return type(cls_name, (super_cls,), attrs)
+        return type(cls_name, (super_cls, get_base()), attrs)
 
 
 class ORMUKFMainEntityFactory:
@@ -197,7 +222,7 @@ class ORMUKFMainEntityFactory:
 
         attrs["alias"] = classmethod(alias)
         attrs["_dynamic_relationships"] = True
-        return type(cls_name, (super_cls,), attrs)
+        return type(cls_name, (super_cls, get_base()), attrs)
 
 
 class ORMUKFAdapter(BaseUKFAdapter):

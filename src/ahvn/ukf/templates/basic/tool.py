@@ -9,7 +9,7 @@ from ...registry import register_ukft
 from ....utils.basic.func_utils import synthesize_docstring
 from ....tool.base import ToolSpec
 
-from typing import Optional, Any, Dict, Union
+from typing import Optional, Any, Dict, Union, ClassVar
 from pydantic import Field, field_validator
 import asyncio
 
@@ -150,19 +150,7 @@ class ToolUKFT(BaseUKF):
         ...     result = await tool_spec.acall(a=3, b=7)
     """
 
-    type: UKFShortTextType = Field(
-        default="tool",
-        description=(
-            "Knowledge category for routing and processing. For example: 'experience', 'knowledge', 'resource'. "
-            "A major classifier used by systems to handle different knowledge types appropriately. Typically have different classes and `content_composers`."
-        ),
-        frozen=True,
-    )
-
-    @field_validator("tags", mode="after")
-    @classmethod
-    def _add_tool_tag(cls, tags):
-        return tags.union(ptags(UKF_TYPE="tool"))
+    type_default: ClassVar[str] = "tool"
 
     def _create_client_from_config(self, client_config: Optional[Dict[str, Any]] = None):
         """\

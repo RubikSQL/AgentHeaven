@@ -22,10 +22,10 @@ from .serialize_utils import load_txt, save_txt
 
 _babel = load_txt("& configs/default_babel.cfg")
 
-from typing import Dict, Optional, Union, List
-from jinja2 import Environment, FileSystemLoader, PrefixLoader, ChoiceLoader, StrictUndefined
-from jinja2.nativetypes import NativeEnvironment
-from babel.support import Translations
+from typing import Dict, Optional, Union, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from jinja2 import Environment
 
 import re
 
@@ -61,6 +61,9 @@ def babel_init(
     cfg_path = hpj(locale_path, "babel.cfg")
     if not exists_file(cfg_path):
         save_txt(_babel.format(encoding=encoding or _encoding), cfg_path)
+    locales_path = hpj(path, "_locales.jinja")
+    if not exists_file(locales_path):
+        touch_file(locales_path, content="")
     pot_path = hpj(locale_path, "messages.pot")
 
     cmd(f"pybabel extract -F {cfg_path} -o {pot_path} {path}", **kwargs)
@@ -109,6 +112,8 @@ import importlib.util
 
 
 def _parse_loaders_and_paths(paths):
+    from jinja2 import FileSystemLoader, PrefixLoader, ChoiceLoader
+
     if isinstance(paths, list):
         # return ChoiceLoader(list(filter(lambda x: x is not None, [_parse_loaders(p) for p in paths])))
         loaders, parsed = list(), list()
@@ -133,7 +138,9 @@ def _parse_loaders_and_paths(paths):
     raise ValueError(f"Invalid path type: {type(paths)}")
 
 
-def load_jinja_env(path: Optional[Union[str, List[str], Dict[str, str]]] = None, lang: Optional[str] = None, env: Environment = None, **kwargs) -> Environment:
+def load_jinja_env(
+    path: Optional[Union[str, List[str], Dict[str, str]]] = None, lang: Optional[str] = None, env: "Environment" = None, **kwargs
+) -> "Environment":
     """\
     Loads a Jinja2 environment with the specified path and language.
 
@@ -155,6 +162,10 @@ def load_jinja_env(path: Optional[Union[str, List[str], Dict[str, str]]] = None,
     Returns:
         Environment: A Jinja2 Environment instance. Specifically, a `NativeEnvironment` is used to support native python types.
     """
+    from jinja2 import ChoiceLoader, StrictUndefined
+    from jinja2.nativetypes import NativeEnvironment
+    from babel.support import Translations
+
     if lang is None:
         lang = _tgt_lang
 
@@ -225,6 +236,12 @@ def load_jinja_env(path: Optional[Union[str, List[str], Dict[str, str]]] = None,
     from ahvn.utils.basic.str_utils import value_repr, omission_list, markdown_symbol, line_numbered
     from ahvn.utils.basic.serialize_utils import dumps_json
 
+    def tr(s):
+        """Translate a string, returning empty string for empty input."""
+        if not s:  # This is required since when s is empty, gettext returns system info
+            return s
+        return translations.gettext(s)
+
     builtin_filters = {
         "zip": zip,
         "value_repr": value_repr,
@@ -232,7 +249,7 @@ def load_jinja_env(path: Optional[Union[str, List[str], Dict[str, str]]] = None,
         "markdown_symbol": markdown_symbol,
         "line_numbered": line_numbered,
         "dumps_json": dumps_json,
-        "tr": translations.gettext,
+        "tr": tr,
     }
     builtin_tests = {
         "ellipsis": lambda x: x is ...,

@@ -23,6 +23,7 @@ class AliasedGroup(click.Group):
             "ls": "list",
             "rm": "remove",
             "rn": "rename",
+            "cp": "copy",
         }
         if cmd_name in cmd_aliases:
             return click.Group.get_command(self, ctx, cmd_aliases[cmd_name])

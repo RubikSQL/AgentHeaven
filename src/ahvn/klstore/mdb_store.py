@@ -110,6 +110,23 @@ class MongoKLStore(BaseKLStore):
             return default
         return self.adapter.to_ukf(doc)
 
+    def _batch_get(self, keys: list[int], default: Any = ...) -> list:
+        """\
+        Retrieve multiple UKFs by their IDs efficiently.
+
+        Args:
+            keys: List of UKF IDs to retrieve.
+            default: Default value to return if not found.
+
+        Returns:
+            list: List of retrieved UKFs or default values.
+        """
+        if not keys:
+            return []
+        ukf_ids = [self.adapter.parse_id(key) for key in keys]
+        docs = {doc["_id"]: doc for doc in self.mdb.conn.find({"_id": {"$in": ukf_ids}})}
+        return [self.adapter.to_ukf(docs[ukf_id]) if ukf_id in docs else default for ukf_id, key in zip(ukf_ids, keys)]
+
     def _batch_convert(self, kls: Iterable[BaseUKF]) -> List[Dict[str, Any]]:
         return [self.adapter.from_ukf(kl=kl, key=None, embedding=None) for kl in kls]
 

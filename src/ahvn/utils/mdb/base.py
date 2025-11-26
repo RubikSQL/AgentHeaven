@@ -5,6 +5,8 @@ This module provides a MongoDB connection class that follows the same pattern
 as the Database class but uses PyMongo for MongoDB operations.
 """
 
+from __future__ import annotations
+
 __all__ = [
     "MongoDatabase",
 ]
@@ -14,17 +16,25 @@ from ..basic.debug_utils import error_str
 from ..basic.request_utils import NetworkProxy
 from ..basic.config_utils import HEAVEN_CM
 from .mdb_utils import resolve_mdb_config
+from ..deps import deps
 
-from typing import Optional, List, Tuple, Any
+from typing import Optional, List, Tuple, TYPE_CHECKING
 
-try:
+if TYPE_CHECKING:
     from pymongo import MongoClient
     from pymongo.database import Database
     from pymongo.collection import Collection
-except ImportError:
-    raise ImportError("pymongo is required for MongoDatabase. Please install it via 'pip install pymongo'.")
 
 logger = get_logger(__name__)
+
+_pymongo = None
+
+
+def get_pymongo():
+    global _pymongo
+    if _pymongo is None:
+        _pymongo = deps.load("pymongo")
+    return _pymongo
 
 
 class MongoDatabase:
@@ -98,7 +108,7 @@ class MongoDatabase:
 
     def connect(self):
         try:
-            self._client = MongoClient(**self.config)
+            self._client = get_pymongo().MongoClient(**self.config)
         except Exception as e:
             logger.error(f"Failed to connect to MongoDB: {error_str(e)}")
             raise
@@ -112,7 +122,7 @@ class MongoDatabase:
         self._client = None
 
     @property
-    def client(self) -> MongoClient:
+    def client(self) -> "MongoClient":
         """\
         Get PyMongo client for sync operations.
 
@@ -124,7 +134,7 @@ class MongoDatabase:
         return self._client
 
     @property
-    def mdb(self) -> Database:
+    def mdb(self) -> "Database":
         """\
         Get the specified database collection.
 
@@ -135,7 +145,7 @@ class MongoDatabase:
         return self.client[database]
 
     @property
-    def conn(self) -> Collection:
+    def conn(self) -> "Collection":
         """\
         Get the specified database collection.
 

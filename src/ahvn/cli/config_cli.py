@@ -3,14 +3,24 @@ Configuration management commands for AgentHeaven CLI.
 """
 
 import click
+from ahvn.cli.utils import AliasedGroup
+
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ahvn.utils.basic.config_utils import ConfigManager
 
 
-def register_config_commands(cli):
+def register_config_commands(cli, cm: Optional["ConfigManager"] = None, name: str = "ahvn"):
     """\
     Register all configuration management commands to the CLI.
     """
+    if cm is None:
+        from ahvn.utils.basic.config_utils import HEAVEN_CM
 
-    @cli.group(help="Config operations: show, set, unset configuration values.")
+        cm = HEAVEN_CM
+
+    @cli.group("config", cls=AliasedGroup, help="Config operations: show, set, unset configuration values.")
     def config():
         """\
         Config operations (show, set, unset).
@@ -24,29 +34,27 @@ def register_config_commands(cli):
         """\
         Show config values.
         """
-        from ahvn.utils.basic.config_utils import HEAVEN_CM
         from ahvn.utils.basic.serialize_utils import dumps_yaml
 
         if is_system:
-            cfg = HEAVEN_CM.get(None, level="system")
+            cfg = cm.get(None, level="system")
             click.echo(dumps_yaml(cfg))
         elif is_global:
-            merged = HEAVEN_CM.get(None, level="global")
+            merged = cm.get(None, level="global")
             click.echo(dumps_yaml(merged))
         else:
-            cfg = HEAVEN_CM.get(None, level="local")
+            cfg = cm.get(None, level="local")
             click.echo(dumps_yaml(cfg))
 
-    @config.command("set", help="Set a config value. Example: ahvn config set [--global] [--json] KEY VALUE")
+    @config.command("set", help=f"Set a config value. Example: {name} config set [--global] [--json] KEY VALUE")
     @click.argument("key", metavar="KEY", nargs=1, required=True)
     @click.argument("value", metavar="VALUE", nargs=1, required=True)
     @click.option("--global", "-g", "is_global", is_flag=True, help="Set global config (default: local)")
     @click.option("--json", "-j", "is_json", is_flag=True, help="Parse value as JSON")
     def set_config(key, value, is_global, is_json):
         """\
-        Set a config value. Usage: ahvn config set [--global] [--json] key value
+        Set a config value. Usage: {name} config set [--global] [--json] key value
         """
-        from ahvn.utils.basic.config_utils import HEAVEN_CM
         from ahvn.utils.basic.type_utils import autotype
 
         if is_json:
@@ -61,27 +69,49 @@ def register_config_commands(cli):
                 return
         level = "global" if is_global else "local"
         value = autotype(value)
-        changed = HEAVEN_CM.set(key, value, level=level)
+        changed = cm.set(key, value, level=level)
         if not changed:
             from ahvn.utils.basic.color_utils import color_error
 
             click.echo(color_error(f"Failed to set {key}."), err=True)
 
-    @config.command("unset", help="Unset a config value. Example: ahvn config unset [--global] KEY")
+    @config.command("unset", help=f"Unset a config value. Example: {name} config unset [--global] KEY")
     @click.argument("key", metavar="KEY", nargs=1, required=True)
     @click.option("--global", "-g", "is_global", is_flag=True, help="Unset global config (default: local)")
     def unset_config(key, is_global):
         """\
-        Unset a config value. Usage: ahvn config unset [--global] key
+        Unset a config value. Usage: {name} config unset [--global] key
         """
-        from ahvn.utils.basic.config_utils import HEAVEN_CM
-
         level = "global" if is_global else "local"
-        changed = HEAVEN_CM.unset(key, level=level)
+        changed = cm.unset(key, level=level)
         if not changed:
             from ahvn.utils.basic.color_utils import color_error
 
             click.echo(color_error(f"Failed to unset {key}."), err=True)
+
+    @config.command("copy", help=f"Copy a config value to local config. Example: {name} config copy [-g] KEY")
+    @click.argument("key", metavar="KEY", nargs=1, required=True)
+    @click.option("--global", "-g", "from_default", is_flag=True, help="Copy from system (default) config instead of global config")
+    def copy_config(key, from_default):
+        """\
+        Copy a config value from global or system config to local config.
+        By default, copies from global config. Use -g to copy from system (default) config.
+        """
+        from ahvn.utils.basic.config_utils import dget
+
+        source_level = "system" if from_default else "global"
+        source_config = cm.get(None, level=source_level)
+        value = dget(source_config, key)
+        if value is None:
+            from ahvn.utils.basic.color_utils import color_error
+
+            click.echo(color_error(f"Key '{key}' not found in {source_level} config."), err=True)
+            return
+        changed = cm.set(key, value, level="local")
+        if not changed:
+            from ahvn.utils.basic.color_utils import color_error
+
+            click.echo(color_error(f"Failed to copy {key} to local config."), err=True)
 
     @config.command("edit", help="Edit config file for a given level in your editor.")
     @click.option("--global", "-g", "is_global", is_flag=True, help="Edit global config (default: local)")
@@ -90,7 +120,6 @@ def register_config_commands(cli):
         """\
         Edit config file in your editor.
         """
-        from ahvn.utils.basic.config_utils import HEAVEN_CM
         import os
         import sys
         import subprocess
@@ -103,7 +132,7 @@ def register_config_commands(cli):
         else:
             level = "local"
 
-        cfg_path = HEAVEN_CM.config_path(level=level)
+        cfg_path = cm.config_path(level=level)
         if not cfg_path or not os.path.exists(cfg_path):
             from ahvn.utils.basic.color_utils import color_error
 
@@ -126,7 +155,6 @@ def register_config_commands(cli):
         """\
         Open config file in your file explorer or editor.
         """
-        from ahvn.utils.basic.config_utils import HEAVEN_CM
         from ahvn.utils.basic.cmd_utils import browse
         import os
         import sys
@@ -139,7 +167,7 @@ def register_config_commands(cli):
         else:
             level = "local"
 
-        cfg_path = HEAVEN_CM.config_path(level=level)
+        cfg_path = cm.config_path(level=level)
         if not cfg_path or not os.path.exists(cfg_path):
             from ahvn.utils.basic.color_utils import color_error
 

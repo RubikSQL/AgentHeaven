@@ -105,6 +105,13 @@ class DatabaseKLStore(BaseKLStore):
             entity = session.get(self.adapter.main, key)
             return default if entity is None else self.adapter.to_ukf(entity=entity)
 
+    def _batch_get(self, keys: list[int], default: Any = ...) -> list:
+        if not keys:
+            return []
+        with Session(self.db.engine) as session:
+            entities = {e.id: e for e in session.scalars(select(self.adapter.main).where(self.adapter.main.id.in_(keys)))}
+            return [self.adapter.to_ukf(entity=entities[key]) if key in entities else default for key in keys]
+
     def _upsert(self, kl: BaseUKF, **kwargs):
         with Session(self.db.engine) as session:
             self._remove_dim(session, [kl.id])

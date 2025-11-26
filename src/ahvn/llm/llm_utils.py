@@ -25,26 +25,41 @@ if not _debug:
     os.environ["DISABLE_SCHEMA_UPDATE"] = "True"
     os.environ["LITELLM_MODE"] = "PRODUCTION"
     os.environ["LITELLM_LOG"] = "ERROR"
-import litellm
 
-litellm.drop_params = True
-litellm.ssl_verify = False
-litellm.disable_end_user_cost_tracking = True
-if not _debug:
-    litellm._logging._disable_debugging()
-    litellm.suppress_debug_info = True
-    litellm.set_verbose = False
-else:
-    litellm._turn_on_debug()
+from ..utils.deps import deps
 
-LITELLM_RETRYABLE_EXCEPTION_TYPES = [
-    litellm.Timeout,
-    litellm.RateLimitError,
-    litellm.ServiceUnavailableError,
-    litellm.APIConnectionError,
-    litellm.InternalServerError,
-    litellm.APIError,
-]
+_litellm = None
+
+
+def get_litellm():
+    """Lazy load litellm with configuration."""
+    global _litellm
+    if _litellm is None:
+        _litellm = deps.load("litellm")
+
+        _litellm.drop_params = True
+        _litellm.ssl_verify = False
+        _litellm.disable_end_user_cost_tracking = True
+        if not _debug:
+            _litellm._logging._disable_debugging()
+            _litellm.suppress_debug_info = True
+            _litellm.set_verbose = False
+        else:
+            _litellm._turn_on_debug()
+    return _litellm
+
+
+def get_litellm_retryable_exceptions():
+    """Get retryable exceptions from litellm."""
+    litellm = get_litellm()
+    return [
+        litellm.Timeout,
+        litellm.RateLimitError,
+        litellm.ServiceUnavailableError,
+        litellm.APIConnectionError,
+        litellm.InternalServerError,
+        litellm.APIError,
+    ]
 
 
 def _resolve_llm_aliases(model_alias: str = None) -> Dict[str, str]:
@@ -178,7 +193,7 @@ def resolve_llm_config(preset: str = None, model: str = None, provider: str = No
     return args
 
 
-Message = Union[str, Dict[str, Any], litellm.Message]
+Message = Union[str, Dict[str, Any], Any]  # litellm.Message is Any when lazy loaded
 Messages = Union[Message, List[Message]]
 
 
@@ -209,6 +224,7 @@ def format_messages(messages: Messages) -> List[Dict]:
     if isinstance(messages, str):
         messages = [{"role": "user", "content": messages}]
     formatted_messages = []
+    litellm = get_litellm()
     for message in messages:
         if isinstance(message, str):
             formatted_messages.append({"role": "user", "content": message})

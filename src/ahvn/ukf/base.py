@@ -29,7 +29,7 @@ from ..utils.basic.config_utils import HEAVEN_CM
 
 logger = get_logger(__name__)
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_serializer, field_validator, computed_field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_serializer, field_validator, computed_field, model_validator
 from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Set, Tuple, Union, Iterable, Type, TYPE_CHECKING
 import datetime
 
@@ -99,6 +99,9 @@ class BaseUKF(BaseModel):
     model definition below.
     """
 
+    type_default: ClassVar[str] = "general"
+    tags_default: ClassVar[Set[str]] = set()
+
     # Metadata
     name: UKFMediumTextType = Field(
         ...,
@@ -164,7 +167,7 @@ class BaseUKF(BaseModel):
         description=("Free-form semi-structured data supporting/replacing the content. Referenced by `content_composers` for formatting."),
     )
     content_composers: UKFJsonType = Field(
-        default={"default": default_composer},
+        default_factory=dict,
         description=(
             "A dictionary mapping composer names to functions, each producing a text representation of the knowledge. "
             "The functions are `f(kl: BaseUKF, **kwargs) -> str` callables that take the UKF object and optional parameters, returning a string. "
@@ -225,7 +228,7 @@ class BaseUKF(BaseModel):
         ),
     )
     triggers: UKFJsonType = Field(
-        default={"default": default_trigger},
+        default_factory=dict,
         description=(
             "Conditional functions determining when this knowledge activates. Each trigger receives "
             "the UKF object and context, returns True/False. Examples: 'business_hours_only', "
@@ -365,6 +368,24 @@ class BaseUKF(BaseModel):
         validate_assignment=True,
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def _inject_type_default(cls, data: Any) -> Any:
+        """Inject the default type if not present in the input data."""
+        if isinstance(data, dict) and "type" not in data:
+            data["type"] = cls.type_default
+        return data
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def _inject_default_tags(cls, tags: Set[str]) -> Set[str]:
+        """Automatically inject default tags and UKF_TYPE tags from class hierarchy."""
+        types = set([base.__dict__.get("type_default", None) for base in cls.__mro__ if issubclass(base, BaseUKF)])
+        default_tags = ptags(UKF_TYPE=list(t for t in types if t is not None)) | set(
+            t for tags in [base.__dict__.get("tags_default", set()) for base in cls.__mro__ if issubclass(base, BaseUKF)] for t in tags
+        )
+        return set(sorted(tags.union(default_tags)))
+
     def __init__(self, **data):
         """Initialize BaseUKF and set the _type discriminator."""
         super().__init__(**data)
@@ -414,11 +435,11 @@ class BaseUKF(BaseModel):
 
         # Extract type value from the object
         if isinstance(obj, dict):
-            type_value = obj.get("type", "general")
+            type_value = obj.get("type", getattr(cls, "type_default", "general"))
         elif isinstance(obj, BaseUKF):
             type_value = obj.type
         elif hasattr(obj, "type"):
-            type_value = getattr(obj, "type", "general")
+            type_value = getattr(obj, "type", getattr(cls, "type_default", "general"))
         else:
             # Can't determine type, use current class
             return super().model_validate(obj, strict=strict, from_attributes=from_attributes, context=context)
@@ -766,6 +787,18 @@ class BaseUKF(BaseModel):
         """
         self.content_composers[name] = composer
 
+    def update_composers(self, composers: Optional[Dict[str, Callable]] = None):
+        """Update multiple content composers in :pyattr:`content_composers`.
+
+        Args:
+            composers (Optional[Dict[str, Callable]]): Mapping of composer names to
+                callables. If None, no changes are made.
+
+        Raises:
+            ValueError: If any name is empty or any composer is not callable.
+        """
+        self.content_composers.update(composers or dict())
+
     def text(self, composer: Optional[Union[str, Callable]] = "default", **kwargs) -> str:
         """Return a text representation produced by a composer.
 
@@ -783,10 +816,11 @@ class BaseUKF(BaseModel):
         """
         if isinstance(composer, Callable):
             return composer(self, **kwargs)
-        if (composer is None) or (composer not in self.content_composers):
+        content_composers = {"default": default_composer} | self.content_composers
+        if (composer is None) or (composer not in content_composers):
             return self.content
         try:
-            return self.content_composers[composer](self, **kwargs)
+            return content_composers[composer](self, **kwargs)
         except Exception as e:
             logger.error(f"Error occurred while composing text: {error_str(e)}.")
             return self.content
@@ -887,7 +921,7 @@ class BaseUKF(BaseModel):
         from .registry import HEAVEN_UR
 
         # Check if we should use a specific UKFT subclass
-        type_value = data.get("type", "general")
+        type_value = data.get("type", getattr(cls, "type_default", "general"))
         ukft_class = HEAVEN_UR.get(type_value)
 
         # Use the registered class if available, otherwise use the current class
@@ -938,11 +972,8 @@ class BaseUKF(BaseModel):
         data = ukf.model_dump()
 
         # If polymorphic is disabled and override_type is True, update the type field
-        if not polymorphic and override_type and hasattr(cls, "model_fields") and "type" in cls.model_fields:
-            # Get the default type value from the target class
-            type_field = cls.model_fields["type"]
-            if type_field.default is not None:
-                data["type"] = type_field.default
+        if not polymorphic and override_type:
+            data["type"] = getattr(cls, "type_default", "general")
 
         # If polymorphic is disabled, use the current class directly
         if not polymorphic:
@@ -968,12 +999,26 @@ class BaseUKF(BaseModel):
         """Clear the manual inactive flag by setting :pyattr:`inactive_mark` to False."""
         self.inactive_mark = False
 
-    def update_triggers(self, triggers: Dict[str, Callable] = None):
+    def set_active(self):
+        """Mark the item as active by setting :pyattr:`inactive_mark` to False."""
+        self.inactive_mark = False
+
+    def set_trigger(self, name: str, trigger: Callable):
+        """Add or update a trigger callable in :pyattr:`triggers`.
+
+        Args:
+            name (str): Name of the trigger.
+            trigger (Callable): Callable that takes a :class:`BaseUKF`
+                instance and returns a boolean.
+        """
+        self.triggers[name] = trigger
+
+    def update_triggers(self, triggers: Optional[Dict[str, Callable]] = None):
         """Merge new trigger callables into the :pyattr:`triggers` mapping.
 
         Args:
-            triggers (Dict[str, Callable], optional): Mapping of name to callable
-                to add or update. If None no changes are made.
+            triggers (Optional[Dict[str, Callable]]): Mapping of name to callable
+                to add or update. If None, no changes are made.
         """
         self.triggers.update(triggers or dict())
 
@@ -1003,7 +1048,8 @@ class BaseUKF(BaseModel):
         """
         contexts = contexts or dict()
         triggers = triggers or dict()
-        result = {trigger: bool(self.triggers.get(trigger)(self, **contexts.get(trigger))) for trigger in triggers if trigger in self.triggers}
+        aug_triggers = {"default": default_trigger} | self.triggers
+        result = {trigger: bool(aug_triggers.get(trigger)(self, **contexts.get(trigger))) for trigger in triggers if trigger in aug_triggers}
         return result if not aggregate else ((len(result) == 0) or (any(result.values()) if aggregate == "ANY" else all(result.values())))
 
     def eval_filter(self, filter: Optional[Union[Dict[str, Any], "KLOp"]] = None, **kwargs) -> bool:

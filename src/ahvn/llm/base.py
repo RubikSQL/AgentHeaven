@@ -16,15 +16,135 @@ from .llm_utils import *
 from ..cache.base import BaseCache
 from ..cache.no_cache import NoCache
 from ..cache.disk_cache import DiskCache
+from ..tool.base import ToolSpec
 
 logger = get_logger(__name__)
 
 import inspect
+import json
 
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from typing import Generator, AsyncGenerator, Any, Dict, List, Optional, Union, Iterable
 from dataclasses import dataclass, field
 from copy import deepcopy
+
+
+def _normalize_tool_call_delta(tool_call) -> Dict[str, Any]:
+    """\
+    Normalize a tool call delta object to a dict format.
+    Handles both dict and litellm ChoiceDeltaToolCall objects.
+    """
+    if isinstance(tool_call, dict):
+        return tool_call
+    # Handle litellm ChoiceDeltaToolCall objects
+    result = {
+        "index": getattr(tool_call, "index", 0),
+        "id": getattr(tool_call, "id", None),
+        "type": getattr(tool_call, "type", "function"),
+    }
+    func = getattr(tool_call, "function", None)
+    if func:
+        result["function"] = {
+            "name": getattr(func, "name", None),
+            "arguments": getattr(func, "arguments", "") or "",
+        }
+    return result
+
+
+def _merge_tool_call_deltas(accumulated: List[Dict[str, Any]], deltas: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """\
+    Merge incremental tool call deltas into accumulated tool calls by index.
+    """
+    for delta in deltas:
+        idx = delta.get("index", 0)
+        # Extend the list if necessary
+        while len(accumulated) <= idx:
+            accumulated.append({"id": None, "type": "function", "function": {"name": "", "arguments": ""}})
+        # Merge delta into accumulated
+        if delta.get("id"):
+            accumulated[idx]["id"] = delta["id"]
+        if delta.get("type"):
+            accumulated[idx]["type"] = delta["type"]
+        if "function" in delta:
+            func_delta = delta["function"]
+            if func_delta.get("name"):
+                accumulated[idx]["function"]["name"] = (accumulated[idx]["function"].get("name") or "") + func_delta["name"]
+            if func_delta.get("arguments"):
+                accumulated[idx]["function"]["arguments"] = (accumulated[idx]["function"].get("arguments") or "") + func_delta["arguments"]
+    return accumulated
+
+
+def _normalize_tools(tools: Optional[List[Union[Dict, "ToolSpec"]]]) -> tuple:
+    """\
+    Normalize a list of tools to (jsonschema_list, toolspec_dict).
+
+    Args:
+        tools: List of tools, each can be a ToolSpec or a jsonschema dict.
+
+    Returns:
+        tuple: (jsonschema_list for LLM API, toolspec_dict mapping name->ToolSpec for execution)
+    """
+    if not tools:
+        return [], {}
+    jsonschema_list = []
+    toolspec_dict = {}
+    for tool in tools:
+        if isinstance(tool, ToolSpec):
+            jsonschema_list.append(tool.to_jsonschema())
+            toolspec_dict[tool.binded.name] = tool
+        elif isinstance(tool, dict):
+            jsonschema_list.append(tool)
+            # Extract name from jsonschema format
+            name = tool.get("function", {}).get("name") or tool.get("name")
+            if name:
+                toolspec_dict[name] = None  # No ToolSpec available for execution
+        else:
+            raise TypeError(f"Tool must be ToolSpec or dict, got {type(tool)}")
+    return jsonschema_list, toolspec_dict
+
+
+def _execute_tool_calls(tool_calls: List[Dict], toolspec_dict: Dict[str, Optional["ToolSpec"]]) -> tuple:
+    """\
+    Execute tool calls and return tool messages and results.
+
+    Args:
+        tool_calls: List of tool call dicts from LLM response.
+        toolspec_dict: Mapping from tool name to ToolSpec (or None if not available).
+
+    Returns:
+        tuple: (tool_messages, tool_results)
+            - tool_messages: List of tool message dicts in OpenAI format for conversation continuation
+            - tool_results: List of result content strings (just the returned values)
+    """
+    tool_messages = []
+    tool_results = []
+    for tc in tool_calls:
+        tool_call_id = tc.get("id", "")
+        func_info = tc.get("function", {})
+        name = func_info.get("name", "")
+        args_str = func_info.get("arguments", "{}")
+
+        toolspec = toolspec_dict.get(name)
+        if toolspec is None:
+            raise ValueError(f"Cannot execute tool '{name}': no ToolSpec available. " "tool_messages/tool_results requires all tools to be ToolSpec instances.")
+
+        try:
+            args = json.loads(args_str)
+            result = toolspec(**args)
+            content = str(result)
+        except Exception as e:
+            content = f"Error: {e}"
+
+        tool_messages.append(
+            {
+                "role": "tool",
+                "tool_call_id": tool_call_id,
+                "name": name,
+                "content": content,
+            }
+        )
+        tool_results.append(content)
+    return tool_messages, tool_results
 
 
 @dataclass
@@ -64,7 +184,10 @@ class LLMChunk:
             self.chunks.append(chunk)
             delta_think = chunk.get("think", "")
             delta_text = chunk.get("text", "")
-            delta_tool_calls = chunk.get("tool_calls", list())
+            raw_tool_calls = chunk.get("tool_calls", list())
+            # Normalize and merge tool_call deltas
+            delta_tool_calls = [_normalize_tool_call_delta(tc) for tc in raw_tool_calls]
+            _merge_tool_call_deltas(self.tool_calls, delta_tool_calls)
             delta_content = ""
             if delta_think:
                 if self._thinking is None:
@@ -78,11 +201,11 @@ class LLMChunk:
                 delta_content += delta_text
             self.delta_think += delta_think
             self.delta_text += delta_text
-            self.delta_tool_calls += delta_tool_calls
+            self.delta_tool_calls = delta_tool_calls  # Store normalized deltas
             self.delta_content += delta_content
         self.think += self.delta_think
         self.text += self.delta_text
-        self.tool_calls += self.delta_tool_calls
+        # Note: tool_calls are merged incrementally, not appended
         self.content += self.delta_content
         return self
 
@@ -132,11 +255,33 @@ class LLMChunk:
 
 
 def _llm_response_formatting(
-    delta: Dict[str, Any], include: Optional[Iterable[str]], messages: List[Dict[str, Any]] = None, reduce: bool = True
-) -> Union[Dict[str, Any], str]:
+    delta: Dict[str, Any], include: Iterable[str], messages: List[Dict[str, Any]] = None, reduce: bool = True
+) -> Union[Dict[str, Any], str, List]:
+    """\
+    Format the LLM response delta according to include fields and reduce settings.
+
+    Args:
+        delta: The response delta dict containing fields like text, think, tool_calls, tool_messages, tool_results, etc.
+        include: Fields to include in the output.
+        messages: Optional messages list for "messages" field construction.
+        reduce: If True and len(include)==1, return the single value instead of dict.
+
+    Returns:
+        Formatted response - either a dict, single value, or list depending on include and reduce.
+    """
     messages = messages or list()
-    formatted_delta = {k: (delta[k] if k != "messages" else deepcopy(messages) + [delta["message"]]) for k in include}
-    return formatted_delta if len(include) > 1 and reduce else formatted_delta[include[0]]
+    formatted_delta = {}
+    for k in include:
+        if k == "messages":
+            formatted_delta[k] = deepcopy(messages) + [delta["message"]]
+        else:
+            # Default empty values for list fields
+            default = [] if k in ("tool_calls", "tool_messages", "tool_results") else ""
+            formatted_delta[k] = delta.get(k, default)
+    # When reduce=True and only one field is requested, return just that value
+    if reduce and len(include) == 1:
+        return formatted_delta[include[0]]
+    return formatted_delta
 
 
 def gather_assistant_message(messages: List[Dict]):
@@ -230,13 +375,14 @@ class LLM(object):
         return retry(
             stop=stop_after_attempt(max_attempts),
             wait=wait_exponential(multiplier=wait_multiplier, max=wait_max),
-            retry=retry_if_exception_type(tuple(LITELLM_RETRYABLE_EXCEPTION_TYPES)),
+            retry=retry_if_exception_type(tuple(get_litellm_retryable_exceptions())),
             reraise=reraise,
         )
 
     def _cached_stream(self, **inputs) -> Generator[Any, None, None]:
         @self._get_retry()
         def vanilla_stream(**inputs) -> Generator[Any, None, None]:
+            litellm = get_litellm()
             for chunk in litellm.completion(**inputs):
                 if not chunk.choices:  # Handle empty responses
                     raise ValueError("Empty response from LLM API")
@@ -260,6 +406,7 @@ class LLM(object):
     async def _cached_astream(self, **inputs) -> AsyncGenerator[Any, None]:
         @self._get_retry()
         async def vanilla_astream(**inputs) -> AsyncGenerator[Any, None]:
+            litellm = get_litellm()
             stream_resp = await litellm.acompletion(**inputs)
 
             try:
@@ -318,6 +465,7 @@ class LLM(object):
             non_empty_batch = [text for i, text in enumerate(batch) if i not in empty]
             if not non_empty_batch:
                 return [self.embed_empty for _ in batch]
+            litellm = get_litellm()
             embeddings = litellm.embedding(input=non_empty_batch, **kwargs).data
             return [self.embed_empty if i in empty else embeddings.pop(0)["embedding"] for i in range(len(batch))]
 
@@ -334,6 +482,7 @@ class LLM(object):
             non_empty_batch = [text for i, text in enumerate(batch) if i not in empty]
             if not non_empty_batch:
                 return [self.embed_empty for _ in batch]
+            litellm = get_litellm()
             embeddings_resp = await litellm.aembedding(input=non_empty_batch, **kwargs)
             embeddings = embeddings_resp.data
             return [self.embed_empty if i in empty else embeddings.pop(0)["embedding"] for i in range(len(batch))]
@@ -344,8 +493,28 @@ class LLM(object):
 
         return await cached_vanilla_aembed(batch, **kwargs)
 
-    def _validate_include(self, include: Optional[Union[str, List[str]]] = None, stream: bool = True) -> List[str]:
-        include = include or ["text"]
+    def _validate_include(
+        self,
+        include: Optional[Union[str, List[str]]] = None,
+        stream: bool = True,
+        has_tools: bool = False,
+        toolspec_dict: Optional[Dict[str, Optional["ToolSpec"]]] = None,
+    ) -> List[str]:
+        """\
+        Validate and normalize include fields.
+
+        Args:
+            include: Fields to include, or None for defaults.
+            stream: Whether this is a streaming request.
+            has_tools: Whether tools are provided.
+            toolspec_dict: Dict mapping tool names to ToolSpec (for tool_messages/tool_results validation).
+
+        Returns:
+            Validated and normalized list of include fields.
+        """
+        # Smart defaults based on whether tools are present
+        if include is None:
+            include = ["think", "text", "tool_calls"] if has_tools else ["text"]
         if isinstance(include, str):
             include = [include]
         include = unique(include)
@@ -353,17 +522,57 @@ class LLM(object):
             raise ValueError("Return mode 'messages' is not supported for streaming requests, use `oracle` instead.")
         if not len(include):
             raise ValueError("Include list must not be empty.")
-        supported = ["text", "think", "tool_calls", "content", "message", "messages"]
+        supported = ["text", "think", "tool_calls", "tool_messages", "tool_results", "content", "message", "messages"]
         for item in include:
             raise_mismatch(supported, got=item, thres=1.0)
+        # Validate tool_messages/tool_results: requires all tools to be ToolSpec
+        needs_execution = "tool_messages" in include or "tool_results" in include
+        if needs_execution and toolspec_dict:
+            for name, spec in toolspec_dict.items():
+                if spec is None:
+                    raise ValueError(f"tool_messages/tool_results requires all tools to be ToolSpec instances, " f"but tool '{name}' is a raw jsonschema dict.")
         return include
 
-    def _validate_config(self, messages: Messages, **kwargs):
-        return {"n": 1} | deepcopy(self.config) | deepcopy(kwargs) | {"messages": messages} | {"stream": True}
+    def _validate_config(
+        self,
+        messages: Messages,
+        tools: Optional[List[Union[Dict, "ToolSpec"]]] = None,
+        tool_choice: Optional[str] = None,
+        **kwargs,
+    ) -> tuple:
+        """\
+        Validate and prepare config for LLM call.
+
+        Args:
+            messages: The messages to send.
+            tools: Optional list of tools (ToolSpec or jsonschema dicts).
+            tool_choice: Optional tool choice setting.
+            **kwargs: Additional config overrides.
+
+        Returns:
+            tuple: (config_dict, toolspec_dict)
+        """
+        jsonschema_list, toolspec_dict = _normalize_tools(tools)
+
+        config = deepcopy(self.config) | deepcopy(kwargs) | {"messages": messages} | {"stream": True}
+
+        # Add tools to config if present
+        if jsonschema_list:
+            config["tools"] = jsonschema_list
+            # Default tool_choice: "auto" if tools present and not specified
+            if tool_choice is None:
+                tool_choice = "auto"
+            config["tool_choice"] = tool_choice
+        elif tool_choice is not None:
+            config["tool_choice"] = tool_choice
+
+        return config, toolspec_dict
 
     def stream(
         self,
         messages: Messages,
+        tools: Optional[List[Union[Dict, "ToolSpec"]]] = None,
+        tool_choice: Optional[str] = None,
         include: Optional[Union[str, List[str]]] = None,
         verbose: bool = False,
         reduce: bool = True,
@@ -376,6 +585,7 @@ class LLM(object):
         - Retry: automatic retries for transient failures.
         - Caching: memoizes successful runs keyed by inputs and `name`.
         - Streaming-first: uses `stream=True` for stability; yields deltas as they arrive.
+        - Tool support: when tools are provided, tool_calls are aggregated and yielded at the end.
         - Proxies: supports `http_proxy` and `https_proxy` in kwargs.
         - Flexible input: accepts multiple message formats and normalizes them.
         - Output shaping: control returned fields with `include` and flattening with `reduce`.
@@ -387,30 +597,32 @@ class LLM(object):
                     - litellm.Message -> converted via json()
                     - str -> treated as user message
                     - dict -> used as-is and must include "role"
-                If a dict contains "tool_calls", its "function.arguments" is JSON-encoded when needed.
+            tools: Optional list of tools, each can be a ToolSpec or jsonschema dict.
+                When provided, include defaults to ["think", "text", "tool_calls"].
+            tool_choice: Tool choice setting. Defaults to "auto" if tools present, otherwise None.
             include: Fields to include in each streamed delta. Can be a str or list[str].
-                Allowed: "text", "think", "tool_calls", "content", "message".
+                Allowed: "text", "think", "tool_calls", "tool_messages", "tool_results", "content", "message".
                 Note: "messages" is NOT supported here (use ``oracle`` for that).
-                Default: ["text"].
+                Default: ["text"] without tools, ["think", "text", "tool_calls"] with tools.
             verbose: If True, logs the resolved request config.
-            reduce: If True, auto-reduce output:
-                - When n == 1, returns a single item instead of a list of choices.
-                - When len(include) == 1, returns a single value instead of a dict.
-            **kwargs: Per-call overrides for LLM config (e.g., temperature, top_p, n, tools, http_proxy, https_proxy, etc.).
+            reduce: If True and len(include) == 1, returns a single value instead of a dict.
+                If False, always returns a dict.
+            **kwargs: Per-call overrides for LLM config (e.g., temperature, top_p, http_proxy, https_proxy, etc.).
 
         Yields:
             LLMResponse:
-            - A list when n > 1 or reduce == False.
-            - A single item when n == 1 and reduce == True:
                 - dict if len(include) > 1 or reduce == False
                 - single value if len(include) == 1 and reduce == True
+                When tools are present, tool_calls/tool_messages/tool_results are yielded at the end after all text.
 
         Raises:
             ValueError: if `include` is empty or contains unsupported fields (e.g., "messages").
+            ValueError: if `tool_messages` or `tool_results` is in include but some tools are not ToolSpec.
         """
         formatted_messages = format_messages(messages)
-        include = self._validate_include(include=include, stream=True)
-        config = self._validate_config(messages=formatted_messages, **kwargs)
+        config, toolspec_dict = self._validate_config(messages=formatted_messages, tools=tools, tool_choice=tool_choice, **kwargs)
+        has_tools = bool(tools)
+        include = self._validate_include(include=include, stream=True, has_tools=has_tools, toolspec_dict=toolspec_dict)
 
         with NetworkProxy(
             http_proxy=config.pop("http_proxy", None),
@@ -420,19 +632,43 @@ class LLM(object):
                 logger.info(f"HTTP  Proxy: {os.environ.get('HTTP_PROXY')}")
                 logger.info(f"HTTPS Proxy: {os.environ.get('HTTPS_PROXY')}")
                 logger.info(f"Request: {encrypt_config(config)}")
-            n = config.get("n", 1)
-            responses = [LLMChunk() for _ in range(n)]
+
+            response = LLMChunk()
             for chunk in self._cached_stream(**config):
-                deltas = list()
-                for i, choice in enumerate(chunk):
-                    responses[i] += choice
-                    deltas.append(_llm_response_formatting(delta=responses[i].to_dict_delta(), include=include, reduce=reduce))
-                yield deltas[0] if n == 1 and reduce else deltas
+                response += chunk[0]
+                delta_dict = response.to_dict_delta()
+
+                # When tools present, don't yield tool_calls incrementally
+                if has_tools:
+                    delta_dict["tool_calls"] = []
+
+                # Skip empty yields
+                if not delta_dict["text"] and not delta_dict["think"] and not delta_dict["tool_calls"]:
+                    continue
+                yield _llm_response_formatting(delta=delta_dict, include=include, reduce=reduce)
+
+            # Yield final tool_calls/tool_messages/tool_results after stream ends
+            if has_tools and response.tool_calls:
+                final_delta = {
+                    "think": "",
+                    "text": "",
+                    "tool_calls": response.tool_calls,
+                    "content": "",
+                    "message": {"role": "assistant", "content": "", "tool_calls": response.tool_calls},
+                }
+                # Execute tools if tool_messages or tool_results requested
+                if "tool_messages" in include or "tool_results" in include:
+                    tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                    final_delta["tool_messages"] = tool_messages
+                    final_delta["tool_results"] = tool_results
+                yield _llm_response_formatting(delta=final_delta, include=include, reduce=reduce)
             return
 
     async def astream(
         self,
         messages: Messages,
+        tools: Optional[List[Union[Dict, "ToolSpec"]]] = None,
+        tool_choice: Optional[str] = None,
         include: Optional[Union[str, List[str]]] = None,
         verbose: bool = False,
         reduce: bool = True,
@@ -442,23 +678,11 @@ class LLM(object):
         Asynchronously stream LLM responses (deltas) for the given messages.
 
         Mirrors :meth:`stream` but returns an async generator suitable for async workflows.
-
-        Args:
-            messages: Conversation content, normalized by ``format_messages`` (see ``stream`` for formats).
-            include: Fields to include in each streamed delta. Can be a str or list[str]. Defaults to ["text"].
-            verbose: If True, logs the resolved request config.
-            reduce: If True, auto-reduce output (same semantics as ``stream``).
-            **kwargs: Per-call overrides for LLM config (e.g., temperature, top_p, n, tools, proxy settings, etc.).
-
-        Yields:
-            LLMResponse: Matches the shape documented in :meth:`stream` with async iteration semantics.
-
-        Raises:
-            ValueError: if ``include`` is empty or contains unsupported fields (e.g., "messages").
         """
         formatted_messages = format_messages(messages)
-        include = self._validate_include(include=include, stream=True)
-        config = self._validate_config(messages=formatted_messages, **kwargs)
+        config, toolspec_dict = self._validate_config(messages=formatted_messages, tools=tools, tool_choice=tool_choice, **kwargs)
+        has_tools = bool(tools)
+        include = self._validate_include(include=include, stream=True, has_tools=has_tools, toolspec_dict=toolspec_dict)
 
         with NetworkProxy(
             http_proxy=config.pop("http_proxy", None),
@@ -468,19 +692,43 @@ class LLM(object):
                 logger.info(f"HTTP  Proxy: {os.environ.get('HTTP_PROXY')}")
                 logger.info(f"HTTPS Proxy: {os.environ.get('HTTPS_PROXY')}")
                 logger.info(f"Request: {encrypt_config(config)}")
-            n = config.get("n", 1)
-            responses = [LLMChunk() for _ in range(n)]
+
+            response = LLMChunk()
             async for chunk in self._cached_astream(**config):
-                deltas = list()
-                for i, choice in enumerate(chunk):
-                    responses[i] += choice
-                    deltas.append(_llm_response_formatting(delta=responses[i].to_dict_delta(), include=include, reduce=reduce))
-                yield deltas[0] if n == 1 and reduce else deltas
+                response += chunk[0]
+                delta_dict = response.to_dict_delta()
+
+                # When tools present, don't yield tool_calls incrementally
+                if has_tools:
+                    delta_dict["tool_calls"] = []
+
+                # Skip empty yields
+                if not delta_dict["text"] and not delta_dict["think"] and not delta_dict["tool_calls"]:
+                    continue
+                yield _llm_response_formatting(delta=delta_dict, include=include, reduce=reduce)
+
+            # Yield final tool_calls/tool_messages/tool_results after stream ends
+            if has_tools and response.tool_calls:
+                final_delta = {
+                    "think": "",
+                    "text": "",
+                    "tool_calls": response.tool_calls,
+                    "content": "",
+                    "message": {"role": "assistant", "content": "", "tool_calls": response.tool_calls},
+                }
+                # Execute tools if tool_messages or tool_results requested
+                if "tool_messages" in include or "tool_results" in include:
+                    tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                    final_delta["tool_messages"] = tool_messages
+                    final_delta["tool_results"] = tool_results
+                yield _llm_response_formatting(delta=final_delta, include=include, reduce=reduce)
             return
 
     def oracle(
         self,
         messages: Messages,
+        tools: Optional[List[Union[Dict, "ToolSpec"]]] = None,
+        tool_choice: Optional[str] = None,
         include: Optional[Iterable[str]] = None,
         verbose: bool = False,
         reduce: bool = True,
@@ -493,41 +741,38 @@ class LLM(object):
         - Retry: automatic retries for transient failures.
         - Caching: memoizes successful runs keyed by inputs and `name`.
         - Streaming-first: uses `stream=True` under the hood and aggregates the result.
+        - Tool support: can include tools and tool_results in response.
         - Proxies: supports `http_proxy` and `https_proxy` in kwargs.
         - Flexible input: accepts multiple message formats and normalizes them.
         - Output shaping: control returned fields with `include` and flattening with `reduce`.
 
         Args:
-            messages: Conversation content, normalized by ``format_messages``:
-                1) str -> treated as a single user message
-                2) list:
-                    - litellm.Message -> converted via json()
-                    - str -> treated as user message
-                    - dict -> used as-is and must include "role"
-                If a dict contains "tool_calls", its "function.arguments" is JSON-encoded when needed.
+            messages: Conversation content, normalized by ``format_messages``.
+            tools: Optional list of tools, each can be a ToolSpec or jsonschema dict.
+                When provided, include defaults to ["think", "text", "tool_calls"].
+            tool_choice: Tool choice setting. Defaults to "auto" if tools present.
             include: Fields to include in the final result. Can be a str or list[str].
-                Allowed: "text", "think", "tool_calls", "content", "message", "messages".
+                Allowed: "text", "think", "tool_calls", "tool_messages", "tool_results", "content", "message", "messages".
                 Note: "messages" (the full dialog) is only supported here.
-                Default: ["text"].
+                Default: ["text"] without tools, ["think", "text", "tool_calls"] with tools.
             verbose: If True, logs the resolved request config.
-            reduce: If True, auto-reduce output:
-                - When n == 1, returns a single item instead of a list of choices.
-                - When len(include) == 1, returns a single value instead of a dict.
-            **kwargs: Per-call overrides for LLM config (e.g., temperature, top_p, n, tools, http_proxy, https_proxy, etc.).
+            reduce: If True and len(include) == 1, returns a single value instead of a dict.
+                If False, always returns a dict.
+            **kwargs: Per-call overrides for LLM config.
 
         Returns:
             LLMResponse:
-            - A list when n > 1 or reduce == False.
-            - A single item when n == 1 and reduce == True:
                 - dict if len(include) > 1 or reduce == False
                 - single value if len(include) == 1 and reduce == True
 
         Raises:
             ValueError: if `include` is empty or contains unsupported fields.
+            ValueError: if `tool_messages` or `tool_results` is in include but some tools are not ToolSpec.
         """
         formatted_messages = format_messages(messages)
-        include = self._validate_include(include=include, stream=False)
-        config = self._validate_config(messages=formatted_messages, **kwargs)
+        config, toolspec_dict = self._validate_config(messages=formatted_messages, tools=tools, tool_choice=tool_choice, **kwargs)
+        has_tools = bool(tools)
+        include = self._validate_include(include=include, stream=False, has_tools=has_tools, toolspec_dict=toolspec_dict)
 
         with NetworkProxy(
             http_proxy=config.pop("http_proxy", None),
@@ -537,17 +782,23 @@ class LLM(object):
                 logger.info(f"HTTP  Proxy: {os.environ.get('HTTP_PROXY')}")
                 logger.info(f"HTTPS Proxy: {os.environ.get('HTTPS_PROXY')}")
                 logger.info(f"Request: {encrypt_config(config)}")
-            n = config.get("n", 1)
-            responses = [LLMChunk() for _ in range(n)]
+            response = LLMChunk()
             for chunk in self._cached_stream(**config):
-                for i, choice in enumerate(chunk):
-                    responses[i] += choice
-            results = [_llm_response_formatting(responses[i].to_dict(), include=include, messages=formatted_messages, reduce=reduce) for i in range(n)]
-            return results[0] if n == 1 and reduce else results
+                response += chunk[0]
+
+            result_dict = response.to_dict()
+            # Execute tools if tool_messages or tool_results requested
+            if ("tool_messages" in include or "tool_results" in include) and response.tool_calls:
+                tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                result_dict["tool_messages"] = tool_messages
+                result_dict["tool_results"] = tool_results
+            return _llm_response_formatting(result_dict, include=include, messages=formatted_messages, reduce=reduce)
 
     async def aoracle(
         self,
         messages: Messages,
+        tools: Optional[List[Union[Dict, "ToolSpec"]]] = None,
+        tool_choice: Optional[str] = None,
         include: Optional[Iterable[str]] = None,
         verbose: bool = False,
         reduce: bool = True,
@@ -556,11 +807,12 @@ class LLM(object):
         """\
         Asynchronously retrieve the final LLM response (aggregated from the async stream).
 
-        Mirrors :meth:`oracle` and shares its configuration, caching, and reduction semantics, but awaits async streaming.
+        Mirrors :meth:`oracle` and shares its configuration, caching, and reduction semantics.
         """
         formatted_messages = format_messages(messages)
-        include = self._validate_include(include=include, stream=False)
-        config = self._validate_config(messages=formatted_messages, **kwargs)
+        config, toolspec_dict = self._validate_config(messages=formatted_messages, tools=tools, tool_choice=tool_choice, **kwargs)
+        has_tools = bool(tools)
+        include = self._validate_include(include=include, stream=False, has_tools=has_tools, toolspec_dict=toolspec_dict)
 
         with NetworkProxy(
             http_proxy=config.pop("http_proxy", None),
@@ -570,13 +822,17 @@ class LLM(object):
                 logger.info(f"HTTP  Proxy: {os.environ.get('HTTP_PROXY')}")
                 logger.info(f"HTTPS Proxy: {os.environ.get('HTTPS_PROXY')}")
                 logger.info(f"Request: {encrypt_config(config)}")
-            n = config.get("n", 1)
-            responses = [LLMChunk() for _ in range(n)]
+            response = LLMChunk()
             async for chunk in self._cached_astream(**config):
-                for i, choice in enumerate(chunk):
-                    responses[i] += choice
-            results = [_llm_response_formatting(responses[i].to_dict(), include=include, messages=formatted_messages, reduce=reduce) for i in range(n)]
-            return results[0] if n == 1 and reduce else results
+                response += chunk[0]
+
+            result_dict = response.to_dict()
+            # Execute tools if tool_messages or tool_results requested
+            if ("tool_messages" in include or "tool_results" in include) and response.tool_calls:
+                tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                result_dict["tool_messages"] = tool_messages
+                result_dict["tool_results"] = tool_results
+            return _llm_response_formatting(result_dict, include=include, messages=formatted_messages, reduce=reduce)
 
     def embed(self, inputs: Union[str, List[str]], verbose: bool = False, **kwargs) -> List[List[float]]:
         """\
@@ -629,6 +885,73 @@ class LLM(object):
                 logger.info(f"Request Args: {encrypt_config(config)}\nInputs:\n" + "\n".join(f"- {input}" for input in inputs))
             results = await self._cached_aembed(batch=inputs, **config)
             return results[0] if single else results
+
+    def tooluse(
+        self,
+        messages: Messages,
+        tools: List[Union[Dict, "ToolSpec"]],
+        verbose: bool = False,
+        **kwargs,
+    ) -> List[Dict]:
+        """\
+        Execute tool calls with the LLM.
+
+        This is a convenience method that forces the LLM to use tools and returns the
+        executed tool messages. It sets tool_choice="required" and returns tool_messages by default.
+
+        Args:
+            messages: Conversation content.
+            tools: List of tools (ToolSpec instances required for execution).
+            verbose: If True, logs the resolved request config.
+            **kwargs: Per-call overrides for LLM config.
+
+        Returns:
+            List[Dict]: List of tool result messages in OpenAI format:
+                [{"role": "tool", "tool_call_id": ..., "name": ..., "content": ...}, ...]
+
+        Raises:
+            ValueError: if tools are not ToolSpec instances.
+
+        Example:
+            >>> tool_messages = llm.tooluse("Calculate fib(10)", tools=[fib_tool])
+            >>> print(tool_messages)
+            [{"role": "tool", "tool_call_id": "...", "name": "fib", "content": "55"}]
+            >>> # For repeated tool use iteration:
+            >>> messages.append({"role": "assistant", "tool_calls": ...})
+            >>> messages.extend(tool_messages)
+            >>> tool_messages = llm.tooluse(messages, tools=[fib_tool])
+        """
+        return self.oracle(
+            messages=messages,
+            tools=tools,
+            tool_choice="required",
+            include=["tool_messages"],
+            verbose=verbose,
+            reduce=True,
+            **kwargs,
+        )
+
+    async def atooluse(
+        self,
+        messages: Messages,
+        tools: List[Union[Dict, "ToolSpec"]],
+        verbose: bool = False,
+        **kwargs,
+    ) -> List[Dict]:
+        """\
+        Asynchronously execute tool calls with the LLM.
+
+        Mirrors :meth:`tooluse` but awaits async streaming.
+        """
+        return await self.aoracle(
+            messages=messages,
+            tools=tools,
+            tool_choice="required",
+            include=["tool_messages"],
+            verbose=verbose,
+            reduce=True,
+            **kwargs,
+        )
 
     @property
     def dim(self):

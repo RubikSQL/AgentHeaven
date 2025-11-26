@@ -52,16 +52,16 @@ Full installation (with all optional dependencies):
 
 ```bash
 # pip
-pip install "agent-heaven[exp,gui,dev]"
+pip install "agent-heaven[exp,dev]"
 
 # uv
-uv pip install "agent-heaven[exp,gui,dev]"
+uv pip install "agent-heaven[exp,dev]"
 
 # poetry
 poetry add agent-heaven --extras "exp gui dev"
 
 # conda
-conda install -c conda-forge agent-heaven[exp,gui,dev]
+conda install -c conda-forge agent-heaven[exp,dev]
 ```
 
 <br/>
@@ -150,16 +150,16 @@ ollama pull qwen3-coder:30b   # For code generation
 
 ## Documentation
 
-📖 **[Complete Documentation](./docs/en/build/html/index.html)**
+📖 **[Complete Documentation](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/index.html)**
 
 ### Quick Links
 
-- 🚀 [Introduction](./docs/en/build/html/introduction/index.html)
-- 📋 [Getting Started](./docs/en/build/html/getting-started/index.html)
-- 💻 [CLI Guide](./docs/en/build/html/cli-guide/index.html)
-- 🐍 [Python API](./docs/en/build/html/python-guide/index.html)
-- 🎯 [Example Applications](./docs/en/build/html/example-applications/index.html)
-- 📚 [API Reference](./docs/en/build/html/api_index.html)
+- 🚀 [Introduction](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/introduction/index.html)
+- 📋 [Getting Started](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/getting-started/index.html)
+- 💻 [CLI Guide](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/cli-guide/index.html)
+- 🐍 [Python API](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/python-guide/index.html)
+- 🎯 [Example Applications](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/example-applications/index.html)
+- 📚 [API Reference](https://rubiksql.github.io/AgentHeaven-docs/en/build/html/api_index.html)
 
 ### Building Documentation Locally
 
@@ -184,7 +184,7 @@ bash scripts/docs.bash en zh -s --no-build
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](./docs/en/source/contribution/index.md) for details on how to get started.
+We welcome contributions! Please see our [Contributing Guide](https://rubiksql.github.io/AgentHeaven-docs/en/source/contribution/index.md) for details on how to get started.
 
 <br/>
 

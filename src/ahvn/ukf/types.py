@@ -229,6 +229,10 @@ class UKFShortTextType(str):
             )
         return str(value)
 
+    @classmethod
+    def max_length(cls) -> int:
+        return _TEXT_LENGTHS.get("short", 255)
+
 
 @_ukf_type
 class UKFMediumTextType(str):
@@ -275,6 +279,10 @@ class UKFMediumTextType(str):
             )
         return str(value)
 
+    @classmethod
+    def max_length(cls) -> int:
+        return _TEXT_LENGTHS.get("medium", 2047)
+
 
 @_ukf_type
 class UKFLongTextType(str):
@@ -320,6 +328,10 @@ class UKFLongTextType(str):
                 {"max_length": max_length, "length": len(value)},
             )
         return str(value)
+
+    @classmethod
+    def max_length(cls) -> int:
+        return _TEXT_LENGTHS.get("long", 65535)
 
 
 @_ukf_type

@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://rubiksql.github.io/AgentHeaven-docs"
+Homepage = "https://github.com/orgs/RubikSQL"
 Documentation = "https://rubiksql.github.io/AgentHeaven-docs"
 Repository = "https://github.com/RubikSQL/AgentHeaven"
 "Bug Tracker" = "https://github.com/RubikSQL/AgentHeaven/issues"
@@ -34,7 +34,6 @@ where = ["src"]
 version = {attr = "ahvn.version.__version__"}
 dependencies = { file = ["requirements.txt"] }
 optional-dependencies.exp = { file = ["requirements-exp.txt"] }
-optional-dependencies.gui = { file = ["requirements-gui.txt"] }
 optional-dependencies.dev = { file = ["requirements-dev.txt"] }
 
 [tool.black]

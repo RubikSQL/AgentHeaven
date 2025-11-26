@@ -12,13 +12,14 @@ __all__ = [
     "next_ver",
 ]
 
-from ..utils.basic import *
+from ..utils.basic.misc_utils import lflat
 
-import re
+from collections import defaultdict
+from typing import Dict, Iterable, Union, Literal, Optional, Tuple, Any
 
+
+# import re
 # _tag_regex = r"\[([^:\]]+):(.*?)\]"
-
-
 def valid_tag(tag: str):
     if not isinstance(tag, str):
         raise TypeError(f"Tag must be a string, got {type(tag)}")

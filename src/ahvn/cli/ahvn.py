@@ -96,7 +96,7 @@ def clean(dry_run):
 # Register commands from other modules with improved help descriptions
 
 register_repo_commands(cli)
-register_config_commands(cli)
+register_config_commands(cli, cm=HEAVEN_CM, name="ahvn")
 register_chat_commands(cli)
 register_babel_commands(cli)
 

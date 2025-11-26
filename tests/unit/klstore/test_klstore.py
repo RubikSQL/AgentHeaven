@@ -379,11 +379,13 @@ class TestKLStoreUKFRoundtrip:
         retrieved = minimal_klstore.get(knowledge.id)
 
         # Verify all tags preserved
+        assert "[UKF_TYPE:general]" in retrieved.tags  # Automatically added tag for Knowledge type
         assert "[UKF_TYPE:knowledge]" in retrieved.tags  # Automatically added tag for Knowledge type
         assert "[category:test]" in retrieved.tags
         assert "[priority:high]" in retrieved.tags
         assert "[status:active]" in retrieved.tags
-        assert len(retrieved.tags) == 5
+        assert "[author:test_suite]" in retrieved.tags
+        assert len(retrieved.tags) == 6
 
 
 class TestKLStoreEdgeCases:

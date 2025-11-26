@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 __all__ = [
     "VdbUKFAdapter",
 ]
@@ -8,9 +10,17 @@ from ..utils.vdb.types import *
 from ..utils.basic.config_utils import HEAVEN_CM
 
 from ..ukf.base import BaseUKF
+from ..utils.deps import deps
 
-from typing import Any, Dict, List, Optional
-from llama_index.core.schema import TextNode
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from llama_index.core.schema import TextNode
+
+
+def get_text_node():
+    return deps.load("llama_index.core.schema").TextNode
+
 
 VDB_FIELD_TYPES = {
     "id": VdbIdType(),
@@ -79,7 +89,7 @@ class VdbUKFAdapter(BaseUKFAdapter):
     def parse_id(self, key: int):
         return VDB_FIELD_TYPES["id"].from_ukf(int(key), backend=self.backend)
 
-    def from_ukf(self, kl: BaseUKF, key: Optional[str] = None, embedding: Optional[List[float]] = None) -> TextNode:
+    def from_ukf(self, kl: BaseUKF, key: Optional[str] = None, embedding: Optional[List[float]] = None) -> "TextNode":
         """\
         Convert a BaseUKF object to a LlamaIndex TextNode.
 
@@ -108,7 +118,7 @@ class VdbUKFAdapter(BaseUKFAdapter):
         data["expiration_timestamp"] = VDB_FIELD_TYPES["timestamp"].from_ukf(kl.expiration_timestamp, backend=self.backend)
         data[self.key_field] = kl.name if key is None else key
         vector = VDB_FIELD_TYPES["vector"].from_ukf(embedding, backend=self.backend)
-        return TextNode(text=data[self.key_field], embedding=vector, metadata=data, id_=data["id"])
+        return get_text_node()(text=data[self.key_field], embedding=vector, metadata=data, id_=data["id"])
 
     def to_ukf_data(self, entity: Dict[str, Any]) -> Dict[str, Any]:
         """\

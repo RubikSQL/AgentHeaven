@@ -1,7 +1,20 @@
+__all__ = [
+    "BaseUKFAdapter",
+    "parse_ukf_include",
+    "ORMUKFAdapter",
+    "VdbUKFAdapter",
+    "MongoUKFAdapter",
+]
+
 from .base import *
+from ..utils.basic import lazy_getattr
 
-from .db import *
+_EXPORT_MAP = {
+    "ORMUKFAdapter": ".db",
+    "VdbUKFAdapter": ".vdb",
+    "MongoUKFAdapter": ".mdb",
+}
 
-from .vdb import *
 
-from .mdb import *
+def __getattr__(name):
+    return lazy_getattr(name, _EXPORT_MAP, __name__)

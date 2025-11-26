@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 __all__ = [
     "VectorDatabase",
 ]
@@ -7,16 +9,25 @@ from .vdb_utils import *
 from ..basic.request_utils import NetworkProxy
 
 from ..basic.log_utils import get_logger
+from ..deps import deps
 
 logger = get_logger(__name__)
 
-from llama_index.core.vector_stores.types import VectorStore
-from llama_index.core.vector_stores.types import VectorStoreQuery
+_llama_index_types = None
+
+
+def get_llama_index_types():
+    global _llama_index_types
+    if _llama_index_types is None:
+        _llama_index_types = deps.load("llama_index.core.vector_stores.types")
+    return _llama_index_types
+
 
 from typing import Any, Optional, Union, Callable, List, Tuple, Dict, Iterable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from llama_index.core.schema import TextNode
+    from llama_index.core.vector_stores.types import VectorStore, VectorStoreQuery
 
 VDB_BACKEND_COLLECTION_MAPPING = {
     "simple": None,
@@ -91,10 +102,13 @@ class VectorDatabase(object):
             self.vdb = ChromaVectorStore(chroma_collection=collection)
             return
         if self.backend == "milvus":
+            from pymilvus import utility
             from llama_index.vector_stores.milvus import MilvusVectorStore
 
             config = {"dim": self.k_dim} | self.config
             self.vdb = MilvusVectorStore(**config)
+            self.vdb.client.load_collection(self.vdb.collection_name)
+            utility.wait_for_loading_complete(self.vdb.collection_name)
             return
         if self.backend == "pgvector":
             from llama_index.vector_stores.postgres import PGVectorStore
@@ -208,7 +222,7 @@ class VectorDatabase(object):
     def search(self, query=None, embedding=None, topk=5, filters=None, *args, **kwargs):
         if (query is None) and (embedding is None):
             raise ValueError("Either 'query' or 'embedding' must be provided for search.")
-        return VectorStoreQuery(
+        return get_llama_index_types().VectorStoreQuery(
             query_embedding=embedding if embedding is not None else self.q_embed(self.q_encode(query)),
             similarity_top_k=topk,
             filters=filters,
@@ -290,7 +304,7 @@ class VectorDatabase(object):
                 # Query with a dummy vector and high limit to get all nodes
                 # Milvus has a max limit of 16384
                 query_result = self.vdb.query(
-                    VectorStoreQuery(
+                    get_llama_index_types().VectorStoreQuery(
                         query_embedding=[0.0] * self.k_dim,
                         similarity_top_k=16384,  # Milvus max limit
                     )
@@ -316,6 +330,9 @@ class VectorDatabase(object):
         """Flush any pending operations to the vector database."""
         # Milvus
         if hasattr(self.vdb, "client") and hasattr(self.vdb.client, "flush"):
+            from pymilvus import utility
+
+            self.vdb.client.load_collection(self.vdb.collection_name)
+            utility.wait_for_loading_complete(self.vdb.collection_name)
             self.vdb.client.flush(self.vdb.collection_name)
             return
-        # PGVector - no explicit flush needed, operations are auto-committed

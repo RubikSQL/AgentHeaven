@@ -464,15 +464,6 @@ class TestUtilityFunctions:
         assert encrypted["secret_token"] == "******"
         assert encrypted["public"] == "value"
 
-    @patch("ahvn.utils.basic.config_utils.HEAVEN_CM")
-    def test_ahvn_resource(self, mock_cm):
-        """Test ahvn_resource function."""
-        mock_cm.resource.return_value = "/mock/resource/path"
-
-        result = config_utils.ahvn_resource("test", "file.txt")
-        mock_cm.resource.assert_called_with("test", "file.txt")
-        assert result == "/mock/resource/path"
-
 
 class TestErrorHandling:
     """Test error handling and edge cases."""

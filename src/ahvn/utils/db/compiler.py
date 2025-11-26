@@ -5,14 +5,27 @@ This module provides functionality to compile KLOp JSON IR expressions
 into SQLAlchemy query expressions for database backends.
 """
 
+from __future__ import annotations
+
 __all__ = ["SQLCompiler"]
 
-from typing import Any, Dict, Optional
-from sqlalchemy import and_, or_, not_, exists, select, distinct, literal
-from sqlalchemy.sql.elements import ClauseElement
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from ..basic.log_utils import get_logger
 from ..basic.debug_utils import error_str
+from ..deps import deps
+
+if TYPE_CHECKING:
+    from sqlalchemy.sql.elements import ClauseElement
+
+
+def get_sa():
+    return deps.load("sqlalchemy")
+
+
+def get_sa_elements():
+    return deps.load("sqlalchemy.sql.elements")
+
 
 logger = get_logger(__name__)
 
@@ -94,8 +107,10 @@ class SQLCompiler:
                 attr = getattr(orms[nf_entity], orms[nf_entity].alias(nf_key))
                 conditions.append(attr == nf_val)
 
-        return exists(
-            select(distinct(orms[nf_entity].id)).where(
+        return get_sa().exists(
+            get_sa()
+            .select(get_sa().distinct(orms[nf_entity].id))
+            .where(
                 orms[entity].id == orms[nf_entity].ukf_id,
                 *conditions,
             )
@@ -175,7 +190,7 @@ class SQLCompiler:
 
                 # NOT(value) - negation of the inner expression
                 inner = SQLCompiler._parse_json(orms, entity, field, path, op_val)
-                return not_(inner)
+                return get_sa().not_(inner)
 
             # Handle comparison operators
             if op in ("==", "!=", "<", "<=", ">", ">=", "LIKE", "ILIKE", "IN"):
@@ -217,11 +232,11 @@ class SQLCompiler:
             if op == "AND":
                 exprs = [SQLCompiler._parse_json(orms, entity, field, path, v) for v in op_val]
                 exprs = [expr for expr in exprs if expr is not None]
-                return and_(*exprs) if exprs else None
+                return get_sa().and_(*exprs) if exprs else None
             if op == "OR":
                 exprs = [SQLCompiler._parse_json(orms, entity, field, path, v) for v in op_val]
                 exprs = [expr for expr in exprs if expr is not None]
-                return or_(*exprs) if exprs else None
+                return get_sa().or_(*exprs) if exprs else None
 
         # Simple value match: content_resources->>'path' = 'value'
         path_expr = attr
@@ -274,13 +289,13 @@ class SQLCompiler:
                         return None  # No filter = match all
                     else:  # OR
                         # Return a condition that's always false
-                        return literal(False)
+                        return get_sa().literal(False)
                 if len(exprs) == 1:
                     return exprs[0]
-                return and_(*exprs) if op == "AND" else or_(*exprs)
+                return get_sa().and_(*exprs) if op == "AND" else get_sa().or_(*exprs)
 
             if op == "NOT":
-                return not_(SQLCompiler._parse(orms=orms, entity=entity, field=field, expr=val))
+                return get_sa().not_(SQLCompiler._parse(orms=orms, entity=entity, field=field, expr=val))
 
             if op.startswith("FIELD:"):
                 if field is not None:
@@ -313,7 +328,7 @@ class SQLCompiler:
                     return None
                 if len(conditions) == 1:
                     return conditions[0]
-                return and_(*conditions)
+                return get_sa().and_(*conditions)
 
             if field is None:
                 raise ValueError(f"Operator '{op}' requires a field context (FIELD:).")
@@ -353,4 +368,4 @@ class SQLCompiler:
             return None
         if len(exprs) == 1:
             return exprs[0]
-        return and_(*exprs)
+        return get_sa().and_(*exprs)

@@ -39,7 +39,7 @@ Dependency:
 - {{ input_key }}:{{ separator }}{% with content=input_value, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
 
 {% endfor -%}
-{%- if instance.metadata.hints is defined and instance.metadata.hints is not none and instance.metadata.hints | length > 0 %}
+{%- if (instance.metadata is defined) and (instance.metadata.hints is defined) and instance.metadata.hints is not none and instance.metadata.hints | length > 0 %}
 
 {% trans %}Hints:{% endtrans %}
 
@@ -75,7 +75,7 @@ Dependency:
 {% with content=expected_content, mode=mode, tag="expected", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
 
 {% endif -%}
-{%- if instance.metadata.notes is defined and instance.metadata.notes is not none and instance.metadata.notes | length > 0 %}
+{%- if (instance.metadata is defined) and (instance.metadata.notes is defined) and instance.metadata.notes is not none and instance.metadata.notes | length > 0 %}
 
 {% trans %}Notes:{% endtrans %}
 

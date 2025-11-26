@@ -6,9 +6,9 @@ from .log_utils import get_logger
 
 logger = get_logger(__name__)
 
-import tqdm
 from typing import Generator, Callable, Iterable, Any, Tuple, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+import tqdm
 
 
 class Parallelized:
@@ -46,6 +46,8 @@ class Parallelized:
                 for args, result, error in ptasks:
                     ...
         """
+        import tqdm
+
         self._executor = ThreadPoolExecutor(max_workers=self.num_threads)
         self._pbar = tqdm.tqdm(total=self.total, desc=self.desc)
         for kwargs in self.args:
@@ -99,5 +101,5 @@ class Parallelized:
             raise e
 
     @property
-    def pbar(self) -> tqdm.tqdm:
+    def pbar(self) -> "tqdm.tqdm":
         return self._pbar

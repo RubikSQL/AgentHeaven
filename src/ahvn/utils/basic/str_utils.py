@@ -3,6 +3,7 @@ String manipulation and text processing utilities for AgentHeaven.
 """
 
 __all__ = [
+    "truncate",
     "value_repr",
     "omission_list",
     "markdown_symbol",
@@ -21,6 +22,22 @@ from typing import Any, Union, Set, List, Optional, Tuple
 from ..deps import deps
 
 
+def truncate(s: str, cutoff: int = -1) -> str:
+    """\
+    Truncate a string if it exceeds the specified cutoff length.
+
+    Args:
+        s (str): The string to truncate.
+        cutoff (int): Maximum length before truncation. Defaults to -1, meaning no cutoff.
+
+    Returns:
+        str: Truncated string if it exceeds cutoff, otherwise the original string.
+    """
+    if cutoff < 0 or len(s) <= cutoff:
+        return s
+    return s[: cutoff - 4] + "..." + s[-1:]
+
+
 def value_repr(value: Any, cutoff: int = -1, round_digits: int = 6) -> str:
     """\
     Format a value representation for display, truncating if too long.
@@ -37,9 +54,7 @@ def value_repr(value: Any, cutoff: int = -1, round_digits: int = 6) -> str:
     if isinstance(value, float):
         value = round(value, round_digits)
     value_repr_str = repr(value)
-    if cutoff < 0 or (len(value_repr_str) <= cutoff):
-        return value_repr_str
-    return value_repr_str[: cutoff - 4] + "..." + value_repr_str[-1:]
+    return truncate(value_repr_str, cutoff=cutoff)
 
 
 def omission_list(items: List, top: int = -1, bottom: int = 1) -> List:

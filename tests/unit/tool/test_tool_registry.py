@@ -382,7 +382,7 @@ class TestToolToJsonSchema:
         schema = tool.to_jsonschema()
 
         assert schema["type"] == "function"
-        assert schema["name"] == "search"
-        assert "query" in schema["parameters"]["properties"]
-        assert "limit" in schema["parameters"]["properties"]
-        assert schema["strict"] is True
+        assert schema["function"]["name"] == "search"
+        assert "query" in schema["function"]["parameters"]["properties"]
+        assert "limit" in schema["function"]["parameters"]["properties"]
+        assert schema["function"]["strict"] is True

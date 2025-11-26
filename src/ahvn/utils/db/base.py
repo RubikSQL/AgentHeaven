@@ -13,10 +13,36 @@ from ..basic.debug_utils import error_str, raise_mismatch, DatabaseError
 from typing import Iterable, List, Dict, Tuple, Any, Union, Optional, Literal, Generator
 from copy import deepcopy
 
-from sqlalchemy import text, inspect, MetaData, Table
-from sqlalchemy.sql.elements import ClauseElement
-from sqlalchemy.schema import DDLElement
-from prettytable import PrettyTable, TableStyle
+from ..deps import deps
+
+_sa = None
+_prettytable = None
+
+
+def get_sa():
+    global _sa
+    if _sa is None:
+        _sa = deps.load("sqlalchemy")
+    return _sa
+
+
+def get_sa_elements():
+    return deps.load("sqlalchemy.sql.elements")
+
+
+def get_sa_schema():
+    return deps.load("sqlalchemy.schema")
+
+
+_prettytable = None
+
+
+def get_prettytable():
+    global _prettytable
+    if _prettytable is None:
+        _prettytable = deps.load("prettytable")
+    return _prettytable
+
 
 logger = get_logger(__name__)
 
@@ -618,11 +644,11 @@ class Database(object):
             table.drop(engine)  # This should work without literal_binds
         """
 
-        if not isinstance(query, ClauseElement):
+        if not isinstance(query, get_sa_elements().ClauseElement):
             raise ValueError("orm_execute only accepts SQLAlchemy ORM statements (ClauseElement)")
 
         try:
-            if isinstance(query, DDLElement) or hasattr(query, "_is_ddl"):
+            if isinstance(query, get_sa_schema().DDLElement) or hasattr(query, "_is_ddl"):
                 return self._exec_sql(query, params=None, autocommit=autocommit)
             else:
                 # query = query.compile(bind=self.engine, compile_kwargs={"literal_binds": True})
@@ -691,7 +717,7 @@ class Database(object):
         """
         # If user passes a ClauseElement to execute(), redirect to orm_execute
         # but don't pass params since ClauseElement should have its own parameters
-        if isinstance(query, ClauseElement):
+        if isinstance(query, get_sa_elements().ClauseElement):
             if params is not None:
                 logger.warning("Parameters ignored when executing ClauseElement via execute(). Use orm_execute() for ClauseElement queries.")
             return self.orm_execute(query, autocommit=autocommit, **kwargs)
@@ -700,7 +726,7 @@ class Database(object):
             # Process string query with optional transpilation and parameters
             # # Disable transpilation for now
             # # processed_query, processed_params = self.sql_processor.process_query(query, params, transpile_from=transpile)
-            return self._exec_sql(text(query), params, autocommit=autocommit, safe=safe)
+            return self._exec_sql(get_sa().text(query), params, autocommit=autocommit, safe=safe)
         except Exception as e:
             if safe:
                 # Return structured error response using the error handler
@@ -772,7 +798,7 @@ class Database(object):
             self.commit()
 
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             return inspector.get_table_names()
         except Exception as e:
             logger.warning(f"Inspector failed, falling back to SQL: {error_str(e)}")
@@ -792,7 +818,7 @@ class Database(object):
             List[str]: List of view names
         """
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             return inspector.get_view_names()
         except Exception as e:
             logger.warning(f"Inspector failed, falling back to SQL: {error_str(e)}")
@@ -817,7 +843,7 @@ class Database(object):
             When full_info=False: List[str] of column names
         """
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             columns = inspector.get_columns(tab_name)
             if full_info:
                 return columns
@@ -847,7 +873,7 @@ class Database(object):
             List[str]: List of primary key column names
         """
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             pks = inspector.get_pk_constraint(tab_name)
             pk_columns = pks.get("constrained_columns", []) if pks else []
             if pk_columns:  # Only return if we found primary keys
@@ -878,7 +904,7 @@ class Database(object):
                 - name: Foreign key constraint name
         """
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             fks = inspector.get_foreign_keys(tab_name)
             result = []
             for fk in fks:
@@ -931,7 +957,7 @@ class Database(object):
             str: Column type
         """
         try:
-            inspector = inspect(self.conn)
+            inspector = get_sa().inspect(self.conn)
             for col in inspector.get_columns(tab_name):
                 if col["name"] == col_name:
                     return str(col["type"])
@@ -1114,10 +1140,8 @@ class Database(object):
             self.commit()
 
             try:
-                from sqlalchemy import text
-
-                metadata = MetaData()
-                table = Table(tab_name, metadata, autoload_with=self.engine)
+                metadata = get_sa().MetaData()
+                table = get_sa().Table(tab_name, metadata, autoload_with=self.engine)
                 try:
                     table.drop(self.engine, cascade=True)
                     logger.info(f"Dropped table with cascade: {tab_name}")
@@ -1130,7 +1154,7 @@ class Database(object):
                 self.commit()
                 # Force a simple query to ensure the drop is processed
                 try:
-                    self.execute(text("SELECT 1"), autocommit=True)
+                    self.execute(get_sa().text("SELECT 1"), autocommit=True)
                 except Exception:
                     pass
 
@@ -1296,17 +1320,17 @@ def table_display(
 
     # Define table styles directly
     styles = {
-        "DEFAULT": TableStyle.DEFAULT,
-        "MARKDOWN": TableStyle.MARKDOWN,
-        "PLAIN_COLUMNS": TableStyle.PLAIN_COLUMNS,
-        "MSWORD_FRIENDLY": TableStyle.MSWORD_FRIENDLY,
-        "ORGMODE": TableStyle.ORGMODE,
-        "SINGLE_BORDER": TableStyle.SINGLE_BORDER,
-        "DOUBLE_BORDER": TableStyle.DOUBLE_BORDER,
-        "RANDOM": TableStyle.RANDOM,
+        "DEFAULT": get_prettytable().TableStyle.DEFAULT,
+        "MARKDOWN": get_prettytable().TableStyle.MARKDOWN,
+        "PLAIN_COLUMNS": get_prettytable().TableStyle.PLAIN_COLUMNS,
+        "MSWORD_FRIENDLY": get_prettytable().TableStyle.MSWORD_FRIENDLY,
+        "ORGMODE": get_prettytable().TableStyle.ORGMODE,
+        "SINGLE_BORDER": get_prettytable().TableStyle.SINGLE_BORDER,
+        "DOUBLE_BORDER": get_prettytable().TableStyle.DOUBLE_BORDER,
+        "RANDOM": get_prettytable().TableStyle.RANDOM,
     }
 
-    ptable = PrettyTable(schema, **kwargs)
+    ptable = get_prettytable().PrettyTable(schema, **kwargs)
     ptable.set_style(styles.get(style, "DEFAULT"))
     ptable.float_format = ".6"
     ptable.max_width = max_width

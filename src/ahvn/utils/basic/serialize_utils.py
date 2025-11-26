@@ -39,6 +39,7 @@ __all__ = [
 
 import binascii
 import base64
+import os
 from .log_utils import get_logger
 
 logger = get_logger(__name__)
@@ -49,11 +50,27 @@ from .file_utils import exists_file, exists_dir, enum_files, enum_dirs
 
 _encoding = HEAVEN_CM.get("encoding", "utf-8")
 
-import os
+from typing import Any, Dict, List, Optional, Literal, Generator, Callable, Union
 import json
-import yaml
 import pickle
-from typing import Dict, Generator, List, Any, Literal, Union, Callable, Optional
+import inspect
+import datetime
+
+
+def loads_yaml(s: str, **kwargs) -> Any:
+    """
+    Load a YAML string into a Python object.
+
+    Args:
+        s (str): The YAML string to load.
+        **kwargs: Additional keyword arguments to pass to `yaml.safe_load`.
+
+    Returns:
+        Any: The loaded Python object.
+    """
+    import yaml
+
+    return yaml.safe_load(s, **kwargs)
 
 
 def load_txt(path: str, encoding: str = None, strict: bool = False) -> str:
@@ -143,20 +160,6 @@ def append_txt(obj: Any, path: str, encoding: str = None):
         fp.write(str(obj) + "\n")
 
 
-def loads_yaml(s: str, **kwargs) -> Any:
-    """\
-    Load a YAML string into a Python object.
-
-    Args:
-        s (str): The YAML string to load.
-        **kwargs: Additional keyword arguments to pass to `yaml.safe_load`.
-
-    Returns:
-        Any: The Python object represented by the YAML string.
-    """
-    return yaml.safe_load(s, **kwargs)
-
-
 def dumps_yaml(obj: Any, sort_keys: bool = False, indent: int = 4, allow_unicode: bool = True, **kwargs) -> str:
     """\
     Serialize a Python object to a YAML string.
@@ -171,6 +174,8 @@ def dumps_yaml(obj: Any, sort_keys: bool = False, indent: int = 4, allow_unicode
     Returns:
         str: The YAML string representation of the object.
     """
+    import yaml
+
     return yaml.safe_dump(obj, sort_keys=sort_keys, indent=indent, allow_unicode=allow_unicode, **kwargs)
 
 
@@ -190,6 +195,8 @@ def load_yaml(path: str, encoding: str = None, strict: bool = False, **kwargs) -
     Raises:
         FileNotFoundError: If the file does not exist and `strict` is True.
     """
+    import yaml
+
     path = hpj(path, abs=True)
     if not exists_file(path):
         if strict:
@@ -218,6 +225,8 @@ def dump_yaml(
         allow_unicode (bool): Whether to allow Unicode characters in the output. Defaults to True.
         **kwargs: Additional keyword arguments to pass to `yaml.safe_dump`.
     """
+    import yaml
+
     path = hpj(path, abs=True)
     dir = get_file_dir(path)
     if dir:
@@ -252,6 +261,8 @@ def save_yaml(
         allow_unicode (bool): Whether to allow Unicode characters in the output. Defaults to True.
         **kwargs: Additional keyword arguments to pass to `yaml.safe_dump`.
     """
+    import yaml
+
     path = hpj(path, abs=True)
     dir = get_file_dir(path)
     if dir:
@@ -482,14 +493,13 @@ def deserialize_path(serialized: Dict[str, Optional[str]], path: str):
 
 
 # TODO: `dill` is unsafe for function storage, as it stores the absolute path to the function's source code, which could result in unexpected behavior if the source code is moved, modified, or transferred to another physical location.
-import dill
-import inspect
-import cloudpickle
 
 
 def _patched_getsource(func: Callable) -> str:
     if hasattr(func, "__source__"):
         return func.__source__
+    import dill
+
     return dill.source.getsource(func)
 
 
@@ -517,6 +527,8 @@ def serialize_func(func: Callable, **kwargs) -> Dict:
             - stream: Whether the function is a generator function (bool).
             - hex_dumps: The function serialized as a hex string using `cloudpickle`.
     """
+    import cloudpickle
+
     return {
         "name": func.__name__,
         "qualname": func.__qualname__,
@@ -548,6 +560,8 @@ def _deserialize_from_source(code, name):
 
 def _deserialize_from_hex(hexstr):
     try:
+        import cloudpickle
+
         return cloudpickle.loads(bytes.fromhex(hexstr))
     except Exception as e:
         logger.error(f"Failed to load cloudpickle function from hex: {e}")
@@ -615,6 +629,11 @@ class AhvnJsonEncoder(json.JSONEncoder):
                 "__obj_type__": "set",
                 "__obj_data__": [AhvnJsonEncoder.transform(item) for item in sorted(list(obj))],
             }
+        if isinstance(obj, datetime.datetime):
+            return {
+                "__obj_type__": "datetime",
+                "__obj_data__": obj.timestamp(),
+            }
         if isinstance(obj, int) and (obj > 1 << 53 or obj < -(1 << 53)):
             return {"__obj_type__": "bigint", "__obj_data__": str(obj)}
         if isinstance(obj, list):
@@ -648,10 +667,12 @@ class AhvnJsonDecoder(json.JSONDecoder):
             return tuple(AhvnJsonDecoder.transform(item) for item in obj["__obj_data__"])
         if obj["__obj_type__"] == "set":
             return set(AhvnJsonDecoder.transform(item) for item in obj["__obj_data__"])
-        if obj["__obj_type__"] == "ellipsis":
-            return ...
+        if obj["__obj_type__"] == "datetime":
+            return datetime.datetime.fromtimestamp(obj["__obj_data__"])
         if obj["__obj_type__"] == "bigint":
             return int(obj["__obj_data__"])
+        if obj["__obj_type__"] == "ellipsis":
+            return ...
         return obj
 
 

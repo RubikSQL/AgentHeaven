@@ -14,9 +14,6 @@ from ..utils.basic.func_utils import (
 from ..utils.basic.jinja_utils import load_jinja_env
 from ..utils.basic.config_utils import dsetdef, dget
 
-from mcp.types import Tool as MCPTool
-from fastmcp.tools import Tool as FastMCPTool
-from fastmcp.tools.tool_transform import ArgTransform
 from typing import Union, Optional, Callable, Iterable, Dict, Any, TYPE_CHECKING
 
 from copy import deepcopy
@@ -25,10 +22,50 @@ import functools
 
 if TYPE_CHECKING:
     from ..ukf.templates.basic.experience import ExperienceType
+    from mcp.types import Tool as MCPTool
+    from fastmcp.tools import Tool as FastMCPTool
 
 
 class ToolSpec(object):
+    """\
+    A specification wrapper for tools that can be used with LLMs.
+
+    ToolSpec can be used as a decorator to convert functions into tool specifications:
+
+    Example:
+        >>> @ToolSpec(name="add", description="Add two numbers")
+        ... def add(a: int, b: int) -> int:
+        ...     return a + b
+        >>> result = add(a=3, b=5)  # Still works as a function
+        8
+        >>> llm.tooluse("Add 3 and 5", tools=[add])  # Works as a tool
+    """
+
+    def __new__(cls, *args, **kwargs):
+        """\
+        Create a new ToolSpec instance or return a decorator.
+
+        When called with keyword arguments (e.g., @ToolSpec(name="add")),
+        returns a decorator that creates a ToolSpec from the decorated function.
+
+        When called with no arguments, returns a normal ToolSpec instance.
+        """
+        # If called with no arguments, create a normal instance
+        if not args and not kwargs:
+            instance = super().__new__(cls)
+            return instance
+
+        # If called with keyword arguments, return a decorator
+        def decorator(func: Callable) -> "ToolSpec":
+            return cls.from_function(func, *args, **kwargs)
+
+        return decorator
+
     def __init__(self):
+        # Skip initialization if this is being used as a decorator
+        # (in that case, __new__ returns a function, not a ToolSpec instance)
+        if not isinstance(self, ToolSpec):
+            return
         self.tool: FastMCPTool = None
         self.state: Dict[str, Any] = dict()
         self.binds: Dict[str, str] = dict()
@@ -50,6 +87,9 @@ class ToolSpec(object):
             return self.tool
         if self._binded is not None:
             return self._binded
+        from fastmcp.tools import Tool as FastMCPTool
+        from fastmcp.tools.tool_transform import ArgTransform
+
         self._binded = FastMCPTool.from_tool(
             tool=self.tool, transform_args={k: ArgTransform(hide=True, default=dget(self.state, v)) for k, v in self.binds.items()}
         )
@@ -183,6 +223,8 @@ class ToolSpec(object):
         Returns:
             ToolSpec: An instance of ToolSpec wrapping the provided function.
         """
+        from fastmcp.tools import Tool as FastMCPTool
+
         tool_spec = cls()
         func_spec = deepcopy(kwargs)
         docstring_spec = None
@@ -249,6 +291,8 @@ class ToolSpec(object):
         Returns:
             ToolSpec: An instance of ToolSpec wrapping the provided MCP tool.
         """
+        from fastmcp.tools import Tool as FastMCPTool
+
         tool_spec = cls()
         tool_spec.tool = FastMCPTool.from_tool(tool=tool, *args, **kwargs)
         tool_spec.examples = examples
@@ -295,6 +339,8 @@ class ToolSpec(object):
             ...     result = spec.call(a=3, b=7)
             ...     print(result)  # 10
         """
+        from fastmcp.tools import Tool as FastMCPTool
+
         # List all available tools from the server
         tools = await client.list_tools()
 
@@ -476,11 +522,14 @@ class ToolSpec(object):
     def to_jsonschema(self, **kwargs):
         return {
             "type": "function",
-            "name": self.binded.name,
-            "description": self.binded.description,
-            "parameters": self.input_schema,
-            "strict": True,
-        } | kwargs
+            "function": {
+                "name": self.binded.name,
+                "description": self.binded.description,
+                "parameters": self.input_schema,
+                "strict": True,
+            }
+            | kwargs,
+        }
 
     @property
     def docstring(self):
