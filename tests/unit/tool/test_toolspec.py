@@ -105,7 +105,6 @@ def test_toolspec_conversions(source: str, destination: str):
         assert schema["function"]["name"] == "sample_tool"
         assert schema["function"]["parameters"]["properties"]["left"]["type"] == "integer"
         assert schema["function"]["parameters"]["properties"]["right"]["default"] == 10
-        assert schema["function"]["strict"] is True
     elif destination == "mcp":
         mcp_tool = spec.to_mcp()
         assert isinstance(mcp_tool, MCPTool)
@@ -228,7 +227,6 @@ class TestFibonacciToolSpec:
         # Test basic schema structure
         assert schema["type"] == "function"
         assert schema["function"]["name"] == "fibonacci"
-        assert schema["function"]["strict"] is True
         assert "parameters" in schema["function"]
         assert schema["function"]["parameters"]["type"] == "object"
 

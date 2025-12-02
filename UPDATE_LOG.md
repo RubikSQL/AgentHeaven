@@ -2,7 +2,11 @@
 
 ## v0.9.2.dev0 (2025-12-02)
 
+<<<<<<< HEAD
 - **_Feature_: `utils.exts.auto*` functions now uses dynamic examples list, enabling cache-based imitation.**
+=======
+- **_Feature_: `utils.exts.auto*` functions now use dynamic examples list, enabling cache-based imitation.**
+>>>>>>> bed508c (0.9.2.dev0 [release])
 
 - **_Feature_: `KLEngine` now stores search args and returns in `r['kl'].metadata['search']` for each search result**
 
