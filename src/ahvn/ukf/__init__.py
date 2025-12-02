@@ -24,6 +24,7 @@ __all__ = [
     "has_tag",
     "has_related",
     "next_ver",
+    "DummyUKFT",
     "KnowledgeUKFT",
     "ExperienceUKFT",
     "ResourceUKFT",
@@ -46,7 +47,7 @@ import importlib
 
 
 def __getattr__(name):
-    if name in ("KnowledgeUKFT", "ExperienceUKFT", "ResourceUKFT", "DocumentUKFT", "TemplateUKFT", "PromptUKFT", "ToolUKFT"):
+    if name in ("DummyUKFT", "KnowledgeUKFT", "ExperienceUKFT", "ResourceUKFT", "DocumentUKFT", "TemplateUKFT", "PromptUKFT", "ToolUKFT"):
         return getattr(importlib.import_module(".templates.basic", __name__), name)
 
     if name == "templates":

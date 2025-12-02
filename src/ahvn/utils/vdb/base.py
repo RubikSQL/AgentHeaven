@@ -150,9 +150,13 @@ class VectorDatabase(object):
         return self.k_embedder(encoded_kl)
 
     def batch_k_encode(self, kls: Iterable[Any]) -> List[str]:
+        if not len(kls):
+            return list()
         return [self.k_encode(kl) for kl in kls]
 
     def batch_k_embed(self, encoded_kls: List[str]) -> List[List[float]]:
+        if not len(encoded_kls):
+            return list()
         return self.k_embedder(encoded_kls)
 
     def q_encode(self, query: Any) -> str:
@@ -162,9 +166,13 @@ class VectorDatabase(object):
         return self.q_embedder(encoded_query)
 
     def batch_q_encode(self, queries: Iterable[str]) -> List[str]:
+        if not len(queries):
+            return list()
         return [self.q_encode(query) for query in queries]
 
     def batch_q_embed(self, encoded_queries: List[str]) -> List[List[float]]:
+        if not len(encoded_queries):
+            return list()
         return self.q_embedder(encoded_queries)
 
     def k_encode_embed(self, obj: Any) -> Tuple[str, List[float]]:
@@ -189,6 +197,8 @@ class VectorDatabase(object):
         Returns:
             List of tuples of (encoded_text, embedding).
         """
+        if not len(objs):
+            return list()
         k_encoded_texts = self.batch_k_encode(objs)
         k_embeddings = self.batch_k_embed(k_encoded_texts)
         return list(zip(k_encoded_texts, k_embeddings))
@@ -215,6 +225,8 @@ class VectorDatabase(object):
         Returns:
             List of tuples of (encoded_text, embedding).
         """
+        if not len(queries):
+            return list()
         q_encoded_texts = self.batch_q_encode(queries)
         q_embeddings = self.batch_q_embed(q_encoded_texts)
         return list(zip(q_encoded_texts, q_embeddings))

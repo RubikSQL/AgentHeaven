@@ -59,7 +59,8 @@ def autocode(
         lang (str, optional): Language code for localization.
         llm_args (Dict, optional): Arguments for the LLM model.
             Notice that code generation oughts to be called once and then reused.
-            Therefore, it is recommended to use a high-quality LLM with `cache` enabled.
+            Therefore, it is strongly recommended to use a high-quality LLM, and
+            it is also strongly recommended to have `cache` enabled to avoid repeated code generation calls.
 
     Returns:
         Callable: A static callable function generated from the LLM-generated code.
@@ -84,15 +85,7 @@ def autocode(
             system
             or "You are a skillful Python expert. Your task is to generate a complete Python function implementation based on the provided signature and test cases."
         )
-        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
-        assertions = [ExperienceUKFT.from_cache_entry(example).text(composer="assertion") for example in examples_list if example]
-        func_demonstration_str = func_spec.code
-        if assertions:
-            assertsions_str = "\n".join(assertions)
-            func_demonstration_str += f"\n\n# Test cases that your implementation must pass:\n{assertsions_str}"
-        func_signature_str = "Implement the following function:\n"
-        func_signature_str += f"```python\n{func_demonstration_str.strip()}\n```"
-        desc_list = [func_signature_str] + (([descriptions] if isinstance(descriptions, str) else descriptions) if descriptions else [])
+        examples_reference = {"examples": examples}
         instr_list = (([instructions] if isinstance(instructions, str) else instructions) if instructions else []) + [
             "Analyze the function signature and test cases to understand the required logic.",
             "Generate a complete Python function implementation that passes all the test cases.",
@@ -102,48 +95,64 @@ def autocode(
             "Wrap the complete Python code in a single markdown 'python' code block.",
         ]
 
-        prompt = PromptUKFT.from_path(
-            "& prompts/autocode",
-            default_entry="prompt.jinja",
-            binds={
-                "system": system_prompt,
-                "descriptions": list(filter(lambda x: x is not None, desc_list)),
-                "examples": examples_list,
-                "instructions": list(filter(lambda x: x is not None, instr_list)),
-            },
-        )
-
         llm = LLM(**(llm_args or dict()))
 
-        try:
-            prompt_str = prompt.text(lang=lang).rstrip()
-        except Exception as e:
-            raise AutoFuncError(f"Failed to render prompt for autocode function.\nError: {e}") from e
-        logger.debug(f"Autocode function prompt:\n{prompt_str}")
+        def autocode_function(**inputs: Dict[str, Any]) -> Any:
+            examples = examples_reference.get("examples", list())
+            examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
+            assertions = [ExperienceUKFT.from_cache_entry(example).text(composer="assertion") for example in examples_list if example]
+            func_demonstration_str = func_spec.code
+            if assertions:
+                assertsions_str = "\n".join(assertions)
+                func_demonstration_str += f"\n\n# Test cases that your implementation must pass:\n{assertsions_str}"
+            func_signature_str = "Implement the following function:\n"
+            func_signature_str += f"```python\n{func_demonstration_str.strip()}\n```"
+            desc_list = [func_signature_str] + (([descriptions] if isinstance(descriptions, str) else descriptions) if descriptions else [])
 
-        try:
-            response = llm.oracle(prompt_str)
-        except Exception as e:
-            raise AutoFuncError(f"LLM failed to generate response for autocode function.\nPrompt:\n{prompt_str}\nError: {e}") from e
-        logger.debug(f"Autocode function LLM response:\n{response}")
+            prompt = PromptUKFT.from_path(
+                "& prompts/autocode",
+                default_entry="prompt.jinja",
+                binds={
+                    "system": system_prompt,
+                    "descriptions": list(filter(lambda x: x is not None, desc_list)),
+                    "examples": examples_list,
+                    "instructions": list(filter(lambda x: x is not None, instr_list)),
+                },
+            )
 
-        try:
-            parsed = parse_md(response)
-            code_block = parsed.get("python", "").strip()
-            if not code_block:
-                raise ValueError("No python code block found in LLM response")
-        except Exception as e:
-            raise AutoFuncError(f"Unable to correctly parse `python` code block from the LLM response.\nPrompt:\n{prompt_str}\nResponse:\n{response}") from e
-        logger.debug(f"Extracted code block:\n{code_block}")
+            try:
+                prompt_str = prompt.text(lang=lang).rstrip()
+            except Exception as e:
+                raise AutoFuncError(f"Failed to render prompt for autocode function.\nError: {e}") from e
+            logger.debug(f"Autocode function prompt:\n{prompt_str}")
 
-        try:
-            func = code2func(code=code_block, func_name=func_name, env=env)
-            if func is None or not callable(func):
-                raise ValueError(f"No callable function '{func_name}' found in generated code")
+            try:
+                response = llm.oracle(prompt_str)
+            except Exception as e:
+                raise AutoFuncError(f"LLM failed to generate response for autocode function.\nPrompt:\n{prompt_str}\nError: {e}") from e
+            logger.debug(f"Autocode function LLM response:\n{response}")
 
-            return func
-        except Exception as e:
-            raise AutoFuncError(f"Failed to execute generated code.\nCode:\n{code_block}\nError: {e}") from e
+            try:
+                parsed = parse_md(response)
+                code_block = parsed.get("python", "").strip()
+                if not code_block:
+                    raise ValueError("No python code block found in LLM response")
+            except Exception as e:
+                raise AutoFuncError(
+                    f"Unable to correctly parse `python` code block from the LLM response.\nPrompt:\n{prompt_str}\nResponse:\n{response}"
+                ) from e
+            logger.debug(f"Extracted code block:\n{code_block}")
+
+            try:
+                func = code2func(code=code_block, func_name=func_name, env=env)
+                if func is None or not callable(func):
+                    raise ValueError(f"No callable function '{func_name}' found in generated code")
+
+                return func(**inputs)
+            except Exception as e:
+                raise AutoFuncError(f"Failed to execute generated code.\nCode:\n{code_block}\nError: {e}") from e
+
+        return autocode_function
 
     if (
         func_spec is not None

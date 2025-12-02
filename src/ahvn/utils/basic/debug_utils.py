@@ -1,4 +1,5 @@
 __all__ = [
+    "value_match",
     "raise_mismatch",
     "error_str",
     "FunctionDeserializationError",
@@ -14,7 +15,33 @@ from .log_utils import get_logger
 logger = get_logger(__name__)
 
 from difflib import SequenceMatcher
-from typing import Literal, Any, List, Optional
+from typing import Literal, Any, List, Optional, Tuple
+
+
+def value_match(
+    supported: List[Any],
+    got: Any,
+    thres: float = 0.3,
+) -> List[Tuple[Any, float]]:
+    """\
+    Find similar values from a list of supported values, returning matches sorted by similarity score.
+
+    Args:
+        supported (List[Any]): A list of supported values.
+        got (Any): The value to match against the supported list.
+        thres (float): The minimum similarity threshold. Only matches with similarity >= thres are returned. Defaults to 0.3.
+
+    Returns:
+        List[Tuple[Any, float]]: A list of (value, score) tuples sorted by score descending.
+            Only includes values with similarity >= thres.
+    """
+
+    def similarity(a: Any, b: Any) -> float:
+        return SequenceMatcher(None, str(a), str(b)).ratio()
+
+    scored = [(val, similarity(got, val)) for val in supported]
+    filtered = [(val, score) for val, score in scored if score >= thres]
+    return sorted(filtered, key=lambda x: x[1], reverse=True)
 
 
 def raise_mismatch(
@@ -52,16 +79,10 @@ def raise_mismatch(
     if got in supported:
         return got
 
-    def similarity(a: Any, b: Any) -> float:
-        """\
-        Calculate the similarity between two strings.
-    """
-        return SequenceMatcher(None, str(a), str(b)).ratio()
-
-    options = sorted(supported, key=lambda x: similarity(got, x), reverse=True)
-    suggestion = options[0] if len(options) > 0 and similarity(got, options[0]) >= thres else None
+    matches = value_match(supported, got, thres=thres)
+    suggestion = matches[0][0] if matches else None
     if mode == "ignore":
-        return suggestion if suggestion else None
+        return suggestion
     message = "\n".join(
         [
             msg
@@ -76,7 +97,7 @@ def raise_mismatch(
     )
     if mode == "warn":
         logger.warning(message)
-        return suggestion if suggestion else None
+        return suggestion
     elif mode == "exit":
         logger.error(message)
         exit(1)

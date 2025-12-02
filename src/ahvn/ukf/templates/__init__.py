@@ -1,6 +1,7 @@
 from ahvn.utils.basic import lazy_getattr, lazy_import_submodules
 
 _EXPORT_MAP = {
+    "DummyUKFT": ".basic",
     "KnowledgeUKFT": ".basic",
     "ExperienceUKFT": ".basic",
     "ResourceUKFT": ".basic",
