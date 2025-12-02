@@ -96,7 +96,7 @@ def autotask(
             or "You are a helpful AI assistant. Your task is to complete a task given its description, examples, and new inputs. Infer the task's logic from the examples and apply it to the new inputs."
         )
         desc_list = [descriptions] if isinstance(descriptions, str) else descriptions
-        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
+        examples_reference = {"examples": examples}
         instr_list = (([instructions] if isinstance(instructions, str) else instructions) or list()) + [
             "Keep your reasoning or response as brief as possible.",
             "The final answer must be a string that supports python `repr`.",
@@ -108,10 +108,11 @@ def autotask(
             binds={
                 "system": system_prompt,
                 "descriptions": list(filter(lambda x: x is not None, desc_list)),
-                "examples": examples_list,
                 "instructions": list(filter(lambda x: x is not None, instr_list)),
             },
         )
+    else:
+        examples_reference = {"examples": examples}
     llm = LLM(**(llm_args or dict()))
 
     def autotask_function(
@@ -120,8 +121,10 @@ def autotask(
     ) -> Any:
         hints = ([hints] if isinstance(hints, str) else hints) or list()
         instance = CacheEntry.from_args(**inputs, output=..., metadata={"hints": hints})
+        examples = examples_reference.get("examples", list())
+        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
         try:
-            prompt_str = prompt.text(lang=lang, instance=instance).rstrip()
+            prompt_str = prompt.text(lang=lang, instance=instance, examples=examples_list).rstrip()
         except Exception as e:
             raise AutoFuncError(f"Failed to render prompt for autotask function.\nInstance:\n{instance}\nError: {e}") from e
         logger.debug(f"Autotask function prompt:\n{prompt_str}")

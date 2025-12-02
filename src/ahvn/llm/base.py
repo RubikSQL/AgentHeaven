@@ -6,6 +6,7 @@ __all__ = [
     "LLM",
     "gather_assistant_message",
     "resolve_llm_config",
+    "format_messages",
 ]
 
 from ..utils.basic.config_utils import encrypt_config, hpj
@@ -890,7 +891,10 @@ class LLM(object):
         self,
         messages: Messages,
         tools: List[Union[Dict, "ToolSpec"]],
+        tool_choice: str = "required",
+        include: Optional[Union[str, List[str]]] = None,
         verbose: bool = False,
+        reduce: bool = True,
         **kwargs,
     ) -> List[Dict]:
         """\
@@ -902,7 +906,10 @@ class LLM(object):
         Args:
             messages: Conversation content.
             tools: List of tools (ToolSpec instances required for execution).
+            tool_choice: Tool choice setting. Defaults to "required".
+            include: Fields to include in the result. Defaults to ["tool_messages"].
             verbose: If True, logs the resolved request config.
+            reduce: If True, simplifies the output when possible.
             **kwargs: Per-call overrides for LLM config.
 
         Returns:
@@ -924,10 +931,10 @@ class LLM(object):
         return self.oracle(
             messages=messages,
             tools=tools,
-            tool_choice="required",
-            include=["tool_messages"],
+            tool_choice=tool_choice,
+            include=["tool_messages"] if include is None else include,
             verbose=verbose,
-            reduce=True,
+            reduce=reduce,
             **kwargs,
         )
 

@@ -11,6 +11,7 @@ from ..utils.basic.serialize_utils import load_json, save_json
 from ..utils.basic.str_utils import is_delimiter, normalize_text, resolve_match_conflicts
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
+from ..utils.deps import deps
 
 logger = get_logger(__name__)
 
@@ -20,8 +21,8 @@ from .base import BaseKLEngine
 
 from typing import Any, Dict, List, Optional, Iterable, Literal, Callable, Union
 from collections import defaultdict
-from ..utils.deps import deps
 import pickle
+import tqdm
 
 
 class DAACKLEngine(BaseKLEngine):
@@ -156,9 +157,9 @@ class DAACKLEngine(BaseKLEngine):
                 - 'id': The unique identifier of the BaseUKF (BaseUKF.id).
                 - 'kl': The BaseUKF object itself (retrieved from storage).
                 - 'query': The normalized query string used for searching.
-                - 'matches': List of (start, end) tuples for match positions in the normalized query.
+                - 'matches': List of (start, end) tuples for match positions in the NORMALIZED query.
                 - 'strs': The matched strings from the normalized query.
-                Defaults to None, which resolves to ['id'].
+                Defaults to None, which resolves to ['id', 'kl', 'strs'].
             *args: Additional positional arguments.
             **kwargs: Additional keyword arguments.
 
@@ -170,7 +171,7 @@ class DAACKLEngine(BaseKLEngine):
             return []
 
         _supported_includes = ["id", "kl", "query", "matches", "strs"]
-        include_set = set(include) if include is not None else {"id"}
+        include_set = set(include) if include is not None else {"id", "kl", "strs"}
         for inc in include_set:
             raise_mismatch(
                 _supported_includes,
@@ -192,8 +193,6 @@ class DAACKLEngine(BaseKLEngine):
             {
                 "id": int(kid),
                 "matches": list(set(segs)),
-                "strs": [normalized_query[start:end] for start, end in segs],
-                **({"query": normalized_query} if "query" in include_set else {}),
             }
             for kid, segs in kid_segs
         ]
@@ -205,6 +204,15 @@ class DAACKLEngine(BaseKLEngine):
             query_length=len(inv_q),
             inverse=self.inverse,
         )
+        results = [
+            {
+                **({"id": result["id"]} if "id" in include_set else {}),
+                **({"matches": result["matches"]} if "matches" in include_set else {}),
+                **({"strs": [normalized_query[start:end] for start, end in result["matches"]]} if "strs" in include_set else {}),
+                **({"query": normalized_query} if "query" in include_set else {}),
+            }
+            for result in results
+        ]
 
         return [{k: v for k, v in result.items() if k in include_set} for result in results]
 
@@ -399,7 +407,7 @@ class DAACKLEngine(BaseKLEngine):
         else:
             self.ac.make_automaton()
 
-    def sync(self, batch_size: Optional[int] = None, flush: bool = True, **kwargs):
+    def sync(self, batch_size: Optional[int] = None, flush: bool = True, verbose: bool = False, **kwargs):
         """\
         Synchronize KLEngine with its attached KLStore, if applicable.
         Notice that a whole synchronization can often lead to large data upload/download.
@@ -412,11 +420,16 @@ class DAACKLEngine(BaseKLEngine):
                 If None, use the default batch size from configuration (512).
                 If <= 0, yields all KLs in a single batch.
             flush (bool): If True, saves the engine state after synchronization. Default is True.
+            verbose (bool): Whether to print progress information. Default is False.
             **kwargs: Additional keyword arguments.
         """
         self.clear()  # Remove all existing KLs for synchronization
         batch_size = batch_size or HEAVEN_CM.get("klengine.batch_size", 512)
-        for kl_batch in self.storage.batch_iter(batch_size=batch_size):
+        num_kls = len(self.storage)
+        total = (num_kls + batch_size - 1) // batch_size if batch_size > 0 else 1
+        batch_iter = self.storage.batch_iter(batch_size=batch_size)
+        pbar = tqdm.tqdm(batch_iter, desc=f"Syncing KLEngine '{self.name}'", disable=not verbose, total=total)
+        for kl_batch in pbar:
             self.batch_upsert(kl_batch, flush=False, **kwargs)
         if flush:
             self.flush()

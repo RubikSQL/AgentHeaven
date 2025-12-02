@@ -139,12 +139,16 @@ class MongoKLEngine(BaseKLEngine):
 
     def batch_k_encode(self, kls: Iterable[Any]) -> List[str]:
         """Batch encode KL objects to text using k_encoder."""
+        if not len(kls):
+            return list()
         if not self._has_vector:
             return [None] * len(kls)
         return [self.k_encoder(kl) for kl in kls]
 
     def batch_k_embed(self, encoded_kls: List[str]) -> List[List[float]]:
         """Batch generate embeddings from encoded KL texts using k_embedder."""
+        if not len(encoded_kls):
+            return list()
         if not self._has_vector:
             return [None] * len(encoded_kls)
         return self.k_embedder(encoded_kls)
@@ -155,6 +159,8 @@ class MongoKLEngine(BaseKLEngine):
 
     def batch_q_encode(self, queries: Iterable[Any]) -> List[str]:
         """Batch encode queries to text using q_encoder."""
+        if not len(queries):
+            return list()
         return [self.q_encoder(query) for query in queries]
 
     def q_embed(self, encoded_query: str) -> List[float]:
@@ -163,6 +169,8 @@ class MongoKLEngine(BaseKLEngine):
 
     def batch_q_embed(self, encoded_queries: List[str]) -> List[List[float]]:
         """Batch generate embeddings from encoded query texts using q_embedder."""
+        if not len(encoded_queries):
+            return list()
         return self.q_embedder(encoded_queries)
 
     def k_encode_embed(self, obj: Any) -> Tuple[str, List[float]]:
@@ -189,6 +197,8 @@ class MongoKLEngine(BaseKLEngine):
         Returns:
             List of tuples (encoded_text, embedding) for each object.
         """
+        if not len(objs):
+            return list()
         if not self._has_vector:
             return [(None, None)] * len(objs)
         k_encoded_texts = self.batch_k_encode(objs)
@@ -217,6 +227,8 @@ class MongoKLEngine(BaseKLEngine):
         Returns:
             List of tuples (encoded_text, embedding) for each query.
         """
+        if not len(queries):
+            return list()
         q_encoded_texts = self.batch_q_encode(queries)
         q_embeddings = self.batch_q_embed(q_encoded_texts)
         return list(zip(q_encoded_texts, q_embeddings))
@@ -349,10 +361,10 @@ class MongoKLEngine(BaseKLEngine):
             kls = [kl for kl in kls if self._has(kl.id)]
             if not kls:
                 return
-            from pymongo import UpdateOne
-
             operations = []
             keys_embeddings = self.batch_k_encode_embed(kls)
+            from pymongo import UpdateOne
+
             for kl, (key, embedding) in zip(kls, keys_embeddings):
                 operations.append(
                     UpdateOne(
@@ -388,11 +400,11 @@ class MongoKLEngine(BaseKLEngine):
             kls = [kl for kl in kls if not self._has(kl.id)]
             if not kls:
                 return
-            from pymongo import ReplaceOne
-
             operations = []
             original_kls = [self._get(kl.id) for kl in kls]
             key_embeddings = self.batch_k_encode_embed(original_kls)
+            from pymongo import ReplaceOne
+
             for original_kl, (key, embedding) in zip(original_kls, key_embeddings):
                 operations.append(
                     ReplaceOne(

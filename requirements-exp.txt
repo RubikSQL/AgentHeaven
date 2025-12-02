@@ -18,7 +18,7 @@ prompt_toolkit
 psycopg2
 pyahocorasick
 pyarrow
-pymilvus
+pymilvus==2.6.3  # 2.6.4 not supported by llama-index yet
 pymongo
 pymongo>=4.0
 pymysql

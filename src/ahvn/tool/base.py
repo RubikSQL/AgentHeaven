@@ -526,7 +526,8 @@ class ToolSpec(object):
                 "name": self.binded.name,
                 "description": self.binded.description,
                 "parameters": self.input_schema,
-                "strict": True,
+                # Note: strict mode disabled due to compatibility issues with Optional parameters
+                # "strict": True,
             }
             | kwargs,
         }

@@ -273,7 +273,7 @@ def resolve_match_conflicts(
             grouped_results[entity_id] = {"id": entity_id, "matches": []}
         grouped_results[entity_id]["matches"].append((start, end))
 
-    return [results_mapping[result["id"]] | {"matches": result["matches"]} for result in grouped_results.values() if result["matches"]]
+    return [results_mapping[result["id"]] | {"matches": sorted(result["matches"])} for result in grouped_results.values() if result["matches"]]
 
 
 def _resolve_longest_conflicts(intervals: list, query_length: int, inverse: bool) -> list:

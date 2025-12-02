@@ -251,8 +251,6 @@ Examples:
         Chat with an LLM using AgentHeaven.
         """
 
-        click.echo(color_grey("Session started. Type /bye or /exit to exit, /help for more commands."))
-
         try:
             llm = LLM(
                 cache=(None if not cache else DiskCache(hpj(HEAVEN_CM.get("core.cache_path", "~/.ahvn/cache/"), "session_cli", abs=True))),

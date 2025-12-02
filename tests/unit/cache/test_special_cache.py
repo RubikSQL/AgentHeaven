@@ -21,7 +21,7 @@ TESTS_DIR = Path(__file__).resolve().parents[1]
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
-from ahvn.cache import NoCache, CallbackCache
+from ahvn.cache import NoCache, CallbackCache, CacheEntry
 
 
 class TestNoCache:
@@ -250,8 +250,6 @@ class TestCallbackCache:
         assert value["inputs"]["param"] == "test"
 
         # Test direct add operation - should also trigger callback
-        from src.ahvn.cache.base import CacheEntry
-
         entry = CacheEntry.from_args(func="add_test", output="add_value", x=1, y=2)
         cache.add(entry)
 

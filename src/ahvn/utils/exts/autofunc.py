@@ -99,7 +99,7 @@ def autofunc(
             "## Function Specification",
             f"```python\n{func_spec_obj.code}\n```",
         ]
-        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
+        examples_reference = {"examples": examples}
         instr_list = (([instructions] if isinstance(instructions, str) else instructions) if instructions else []) + [
             "Keep your reasoning or response as brief as possible.",
             "The final answer must be a string that supports python `repr`.",
@@ -112,7 +112,6 @@ def autofunc(
             binds={
                 "system": system_prompt,
                 "descriptions": list(filter(lambda x: x is not None, desc_list)),
-                "examples": examples_list,
                 "instructions": list(filter(lambda x: x is not None, instr_list)),
             },
         )
@@ -125,8 +124,14 @@ def autofunc(
         ) -> Any:
             hints = ([hints] if isinstance(hints, str) else hints) or list()
             instance = CacheEntry.from_args(**inputs, output=..., metadata={"hints": hints})
+            examples = examples_reference.get("examples", list())
+            examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
             try:
-                prompt_str = prompt.text(lang=lang, instance=instance).rstrip()
+                prompt_str = prompt.text(
+                    lang=lang,
+                    instance=instance,
+                    examples=examples_list,
+                ).rstrip()
             except Exception as e:
                 raise AutoFuncError(f"Failed to render prompt for autofunc function.\nInstance:\n{instance}\nError: {e}") from e
             logger.debug(f"Autofunc function prompt:\n{prompt_str}")

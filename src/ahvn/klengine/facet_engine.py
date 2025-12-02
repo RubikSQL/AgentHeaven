@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 from typing import Any, Dict, Iterable, List, Optional, Callable
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..utils.db import Database
@@ -19,7 +19,6 @@ from .base import BaseKLEngine
 from ..ukf.base import BaseUKF
 from ..adapter.db import ORMUKFAdapter
 from ..klstore.db_store import DatabaseKLStore
-from ..llm.base import LLM
 
 
 class FacetKLEngine(BaseKLEngine):
