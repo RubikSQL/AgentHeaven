@@ -1,6 +1,6 @@
 import pytest
 
-from ahvn.utils.basic.parser_utils import parse_keys, parse_md
+from ahvn.utils.basic.parser_utils import parse_keys, parse_md, parse_fc
 
 
 class TestParseKeys:
@@ -266,3 +266,42 @@ class TestParserEdgeCases:
         result = parse_md(md_content)
         expected = {"python": "code1", "sql": "code2"}
         assert result == expected
+
+
+class TestParseFunctionCall:
+    """Test the parse_fc function."""
+
+    def test_parse_fc_basic(self):
+        call = "fibonacci(n=32)"
+        expected = {"name": "fibonacci", "arguments": {"n": 32}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_whitespace_and_types(self):
+        call = " foo ( bar = 'baz' , qux = 1.5 , ok=true , nada=None ) "
+        expected = {"name": "foo", "arguments": {"bar": "baz", "qux": 1.5, "ok": True, "nada": None}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_empty_args(self):
+        call = "ping()"
+        expected = {"name": "ping", "arguments": {}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_nested_literals(self):
+        call = "mix(a=[1, 2], b={'x': 3})"
+        expected = {"name": "mix", "arguments": {"a": [1, 2], "b": {"x": 3}}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_trailing_comma(self):
+        call = "noop(a=1,)"
+        expected = {"name": "noop", "arguments": {"a": 1}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_invalid_missing_paren(self):
+        call = "broken(a=1"
+        with pytest.raises(ValueError):
+            parse_fc(call)
+
+    def test_parse_fc_invalid_positional(self):
+        call = "func(1, b=2)"
+        with pytest.raises(ValueError):
+            parse_fc(call)

@@ -2,12 +2,10 @@ __all__ = [
     "TemplateUKFT",
 ]
 
-from ...types import UKFShortTextType
-from ...base import BaseUKF, ptags
+from ...base import BaseUKF
 from ...registry import register_ukft
 
-from typing import Set, ClassVar
-from pydantic import Field, field_validator
+from typing import ClassVar
 
 
 # TODO

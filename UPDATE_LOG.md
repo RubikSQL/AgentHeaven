@@ -1,16 +1,52 @@
 # Update Log
 
+## v0.9.2.dev1 (2025-12-09)
+
+- **_Feature_: new `ScanKLEngine`, which brute-force scans all entries in the KLStore for search, useful for small datasets and testing**
+
+- **_Feature_: `HEAVEN_KB` which stores built-in ahvn ukfs, as a first attempt towards AgentHeaven's self-containment**
+
+- **_Feature_: `dmerge` (used in ConfigManager) now supports overwriting nested dictionaries with the special key `_OVERWRITE_`**
+
+- **_Feature_: Progress bar utils is added to AgentHeaven utils for a unified callback progress reporting system**
+
+- **_Feature_: `system/prompt.jinja` now supports `toolspecs` to render tool specifications in prompts with instruction on text-based function calling**
+
+- **_Feature_: `autocode/autofunc/autotask` prompts are converted to `PromptUKFT`, which now supports `format` and `bind` and have altered composers**
+
+- **_Feature_: `BaseUKF` now supports `get` to retrieve nested values from `content_resources` using dot-separated key paths**
+
+- **_Fix_: LLM tool calling now properly parses `index` (missing for backends like `vllm`) for merging tool call deltas**
+
+- _Feature_: `ToolSpec` now supports `to_function` to convert a `ToolSpec` back to a callable function with proper signature
+
+- _Feature_: `funcwrap` utility added to wrap a function with the signature and metadata of another function
+
+- _Feature_: `KLBase` now supports `default_engine` which is used when no engine is specified in `search`
+
+- _Deprecate_: `KLBase` now interprets CRUD to `storages` and `engines` separately; if both are None, all storages and engines are used; if one is None, it is set to empty list if the other is non-empty, otherwise all.
+
+- _Deprecate_: `klengine.batch_size` -> `klengine.sync_batch_size` for sync operations to clarify usage
+
+- _Fix_: fixed `auto*` creating a different function signature than expected when `bind` is used, causing `Cache.memoize` to fail
+
+- _Fix_: `system/prompt.jinja` now guarantees two blank lines between sections, even when some sections are omitted
+
+- _Fix_: updated default LLM presets
+
+- _Fix_: `ahvn chat` and `ahvn session` now default to appropriate presets (`chat`) if none specified
+
+<br/>
+
 ## v0.9.2.dev0 (2025-12-02)
 
-<<<<<<< HEAD
-- **_Feature_: `utils.exts.auto*` functions now uses dynamic examples list, enabling cache-based imitation.**
-=======
-- **_Feature_: `utils.exts.auto*` functions now use dynamic examples list, enabling cache-based imitation.**
->>>>>>> bed508c (0.9.2.dev0 [release])
+- **_Feature_: `utils.exts.auto*` functions now use a dynamic examples list, enabling cache-based imitation**
 
 - **_Feature_: `KLEngine` now stores search args and returns in `r['kl'].metadata['search']` for each search result**
 
 - _Feature_: `config copy` now supports copying all configs with user confirmation by passing no keyword arguments
+
+- _Deprecate_: `ToolSpec.jsonschema` disabled strict mode to be compatible with optional parameters
 
 - _Fix_: `BaseKLEngine.search` now respects the `_search` defaults when `include=None`
 

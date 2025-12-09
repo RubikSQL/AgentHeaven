@@ -5,15 +5,13 @@ __all__ = [
     "instance_prompt_composer",
 ]
 
-from ...types import UKFShortTextType
-from ...base import BaseUKF, ptags
+from ...base import BaseUKF
 from ...registry import register_ukft
 from ....cache import CacheEntry
 from ....utils.basic.jinja_utils import load_jinja_env
 from ....utils.basic.config_utils import hpj
 
-from typing import Union, Dict, Any, Set, ClassVar
-from pydantic import Field, field_validator
+from typing import Union, Dict, Any, ClassVar
 
 
 def assertion_composer(kl, **kwargs):
@@ -43,12 +41,12 @@ def assertion_composer(kl, **kwargs):
         >>> assertion_composer(kl)
         "assert (add(a=1, b=2) == 3)"
     """
-    func = kwargs.get("func", kl.content_resources.get("func", ""))
-    inputs = kwargs.get("inputs", kl.content_resources.get("inputs", dict()))
-    output = kwargs.get("output", kl.content_resources.get("output", None))
-    expected = kwargs.get("expected", kl.content_resources.get("expected", ...))
+    func = kwargs.get("func", kl.get("func", ""))
+    inputs = kwargs.get("inputs", kl.get("inputs", dict()))
+    output = kwargs.get("output", kl.get("output", ...))
+    expected = kwargs.get("expected", kl.get("expected", ...))
     if expected is not ...:
-        output = kwargs.get("expected", kl.content_resources.get("expected", output))
+        output = kwargs.get("expected", kl.get("expected", output))
     args = ", ".join(f"{p}={repr(a)}" for p, a in inputs.items())
     return f"assert ({func}({args}) == {repr(output)})"
 
@@ -215,19 +213,19 @@ class ExperienceUKFT(BaseUKF):
             True
         """
         if expected is ...:
-            expected = self.content_resources.get("output")
+            expected = self.get("output")
         content_resources = self.content_resources | updates.get("content_resources", dict()) | {"expected": expected}
         return self.clone(**(updates | {"content_resources": content_resources}))
 
     @property
     def inputs(self) -> Dict[str, Any]:
         """Get the inputs from content_resources."""
-        return self.content_resources.get("inputs", dict())
+        return self.get("inputs", dict())
 
     @property
     def output(self) -> Any:
         """Get the output from content_resources."""
-        return self.content_resources.get("output", None)
+        return self.get("output", None)
 
 
 ExperienceType = Union[Dict[str, Any], ExperienceUKFT, CacheEntry]

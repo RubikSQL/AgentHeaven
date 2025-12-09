@@ -11,6 +11,7 @@ from ..utils.basic.serialize_utils import load_json, save_json
 from ..utils.basic.str_utils import is_delimiter, normalize_text, resolve_match_conflicts
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
+from ..utils.basic.progress_utils import Progress, NoProgress
 from ..utils.deps import deps
 
 logger = get_logger(__name__)
@@ -19,10 +20,9 @@ from ..ukf.base import BaseUKF
 from ..klstore.base import BaseKLStore
 from .base import BaseKLEngine
 
-from typing import Any, Dict, List, Optional, Iterable, Literal, Callable, Union
+from typing import Any, Dict, List, Optional, Iterable, Literal, Callable, Union, Type
 from collections import defaultdict
 import pickle
-import tqdm
 
 
 class DAACKLEngine(BaseKLEngine):
@@ -283,7 +283,7 @@ class DAACKLEngine(BaseKLEngine):
         if flush:
             self.flush()
 
-    def _batch_upsert(self, kls, flush: bool = True, **kwargs):
+    def _batch_upsert(self, kls, flush: bool = True, progress: Progress = None, **kwargs):
         """\
         Insert or update multiple BaseUKF objects in the engine.
 
@@ -297,6 +297,8 @@ class DAACKLEngine(BaseKLEngine):
         """
         for kl in kls:
             self._upsert(kl, flush=False, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
         if flush:
             self.flush()
@@ -326,7 +328,7 @@ class DAACKLEngine(BaseKLEngine):
 
         return True
 
-    def _batch_remove(self, keys: Iterable[int], flush: bool = True, **kwargs):
+    def _batch_remove(self, keys: Iterable[int], flush: bool = True, progress: Progress = None, **kwargs):
         """\
         Remove multiple BaseUKF objects from the engine by their keys (ids).
 
@@ -346,6 +348,8 @@ class DAACKLEngine(BaseKLEngine):
             if (key in self.lazy_deletion) or (key not in self.kl_synonyms):
                 continue
             self.lazy_deletion.add(key)
+            if progress is not None:
+                progress.update(1)
 
         if flush:
             self.flush()
@@ -407,7 +411,7 @@ class DAACKLEngine(BaseKLEngine):
         else:
             self.ac.make_automaton()
 
-    def sync(self, batch_size: Optional[int] = None, flush: bool = True, verbose: bool = False, **kwargs):
+    def sync(self, batch_size: Optional[int] = None, flush: bool = True, progress: Type[Progress] = None, **kwargs):
         """\
         Synchronize KLEngine with its attached KLStore, if applicable.
         Notice that a whole synchronization can often lead to large data upload/download.
@@ -420,17 +424,19 @@ class DAACKLEngine(BaseKLEngine):
                 If None, use the default batch size from configuration (512).
                 If <= 0, yields all KLs in a single batch.
             flush (bool): If True, saves the engine state after synchronization. Default is True.
-            verbose (bool): Whether to print progress information. Default is False.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
         self.clear()  # Remove all existing KLs for synchronization
-        batch_size = batch_size or HEAVEN_CM.get("klengine.batch_size", 512)
+        batch_size = batch_size or HEAVEN_CM.get("klengine.sync_batch_size", 512)
         num_kls = len(self.storage)
-        total = (num_kls + batch_size - 1) // batch_size if batch_size > 0 else 1
+        total = num_kls
         batch_iter = self.storage.batch_iter(batch_size=batch_size)
-        pbar = tqdm.tqdm(batch_iter, desc=f"Syncing KLEngine '{self.name}'", disable=not verbose, total=total)
-        for kl_batch in pbar:
-            self.batch_upsert(kl_batch, flush=False, **kwargs)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Syncing KLEngine '{self.name}'") as pbar:
+            for kl_batch in batch_iter:
+                self.batch_upsert(kl_batch, flush=False, progress=None, **kwargs)
+                pbar.update(len(kl_batch))
         if flush:
             self.flush()
 

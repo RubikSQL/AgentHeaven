@@ -1,11 +1,13 @@
 __all__ = [
     "parse_keys",
     "parse_md",
+    "parse_fc",
 ]
 
 
 from .debug_utils import raise_mismatch
 
+import ast
 import re
 from typing import Literal, Optional, List
 
@@ -135,3 +137,97 @@ def parse_md(response: str, recurse: bool = False, mode: Literal["list", "dict"]
         _dfs(blocks)
         return parsed
     raise_mismatch(["list", "dict"], got=mode, name="mode")
+
+
+def parse_fc(call: str):
+    """Parse a simple function call string into name and arguments.
+
+    Supported syntax mirrors typical Python-style calls with keyword arguments. Examples:
+
+    - ``"fibonacci(n=32)"`` -> ``{"name": "fibonacci", "arguments": {"n": 32}}``
+    - ``"foo(bar='baz', qux=true, nada=None)"`` -> booleans and ``None``/``null`` are normalized.
+    - Empty argument lists like ``"ping()"`` yield an empty ``arguments`` dict.
+
+    Args:
+        call: The function call string, e.g., ``"func(a=1, b='x')"``.
+
+    Returns:
+        dict: ``{"name": <function_name>, "arguments": {<key>: <parsed_value>, ...}}``
+
+    Raises:
+        ValueError: If the call string cannot be parsed or contains positional arguments.
+    """
+
+    def _split_args(arg_str: str):
+        parts = list()
+        current = list()
+        depth = 0
+        in_single = False
+        in_double = False
+
+        for ch in arg_str:
+            if ch == "'" and not in_double:
+                in_single = not in_single
+            elif ch == '"' and not in_single:
+                in_double = not in_double
+            elif ch in "([{" and not in_single and not in_double:
+                depth += 1
+            elif ch in ")]}" and not in_single and not in_double and depth > 0:
+                depth -= 1
+            if ch == "," and depth == 0 and not in_single and not in_double:
+                part = "".join(current).strip()
+                if part:
+                    parts.append(part)
+                current = list()
+                continue
+            current.append(ch)
+        tail = "".join(current).strip()
+        if tail:
+            parts.append(tail)
+        return parts
+
+    def _split_kv(item: str):
+        depth = 0
+        in_single = False
+        in_double = False
+        for idx, ch in enumerate(item):
+            if ch == "'" and not in_double:
+                in_single = not in_single
+            elif ch == '"' and not in_single:
+                in_double = not in_double
+            elif ch in "([{" and not in_single and not in_double:
+                depth += 1
+            elif ch in ")]}" and not in_single and not in_double and depth > 0:
+                depth -= 1
+            if ch == "=" and depth == 0 and not in_single and not in_double:
+                return item[:idx].strip(), item[idx + 1 :].strip()
+        raise ValueError("Expected key=value pairs in function arguments")
+
+    def _convert(value: str):
+        lowered = value.lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        if lowered in {"none", "null"}:
+            return None
+        try:
+            return ast.literal_eval(value)
+        except Exception:
+            return value
+
+    match = re.match(r"^\s*([A-Za-z_]\w*)\s*(?:\((.*)\))?\s*$", call)
+    if not match:
+        raise ValueError("Invalid function call format")
+
+    name = match.group(1)
+    arg_str = match.group(2)
+    if arg_str is None or not arg_str.strip():
+        return {"name": name, "arguments": dict()}
+
+    arguments = dict()
+    for part in _split_args(arg_str):
+        key, value = _split_kv(part)
+        arguments[key] = _convert(value)
+
+    return {"name": name, "arguments": arguments}

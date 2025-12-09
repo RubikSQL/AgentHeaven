@@ -18,6 +18,7 @@ from ..utils.klop import KLOp
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
 from ..utils.basic.debug_utils import raise_mismatch
+from ..utils.basic.progress_utils import Progress
 
 from .base import BaseKLEngine
 from ..ukf.base import BaseUKF
@@ -249,25 +250,25 @@ class VectorKLEngine(BaseKLEngine):
             return
         VectorKLStore._insert(self, kl, **kwargs)
 
-    def _batch_upsert(self, kls, **kwargs):
+    def _batch_upsert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_upsert(self, kls, **kwargs)
+        VectorKLStore._batch_upsert(self, kls, progress=progress, **kwargs)
 
-    def _batch_insert(self, kls, **kwargs):
+    def _batch_insert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_insert(self, kls, **kwargs)
+        VectorKLStore._batch_insert(self, kls, progress=progress, **kwargs)
 
     def _remove(self, key: int, **kwargs):
         if self.inplace:
             return
         VectorKLStore._remove(self, key, **kwargs)
 
-    def _batch_remove(self, keys, **kwargs):
+    def _batch_remove(self, keys, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_remove(self, keys, **kwargs)
+        VectorKLStore._batch_remove(self, keys, progress=progress, **kwargs)
 
     def __len__(self) -> int:
         if self.inplace:

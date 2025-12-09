@@ -18,6 +18,7 @@ dependencies:
         - Jinja2>=3.0
         - litellm>=1.0
         - openai>=1.0
+        - pandas>=2.3.3
         - polib>=1.2.0
         - prettytable>=3.17.0
         - pydantic>=2.0
@@ -66,7 +67,7 @@ dependencies:
         - ollama
         - prettytable>=3.0
         - prompt_toolkit
-        - psycopg2
+        - psycopg2-binary
         - pyahocorasick
         - pyarrow
         - pymilvus==2.6.3  # 2.6.4 not supported by llama-index yet

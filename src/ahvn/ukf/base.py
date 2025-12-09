@@ -25,7 +25,7 @@ from ..utils.basic.log_utils import get_logger
 from ..utils.basic.hash_utils import md5hash, fmt_hash
 from ..utils.basic.serialize_utils import dumps_json, loads_json, serialize_func, deserialize_func
 from ..utils.basic.debug_utils import error_str
-from ..utils.basic.config_utils import HEAVEN_CM
+from ..utils.basic.config_utils import HEAVEN_CM, dget
 
 logger = get_logger(__name__)
 
@@ -990,6 +990,19 @@ class BaseUKF(BaseModel):
         target_class = ukft_class if ukft_class is not None else cls
 
         return target_class.model_validate(data)
+
+    def get(self, key_path: str, default: Any = None) -> Any:
+        """\
+        Retrieve a nested value from the BaseUKF's `content_resources` using a dot-separated key path.
+
+        Args:
+            key_path (str): Dot-separated path to the desired value (e.g., "level1.level2.key").
+            default (Any): Value to return if the key path does not exist.
+
+        Returns:
+            Any: The value found at the specified key path, or the default if not found.
+        """
+        return dget(self.content_resources, key_path, default)
 
     def set_inactive(self):
         """Mark the item as inactive by setting :pyattr:`inactive_mark` to True."""

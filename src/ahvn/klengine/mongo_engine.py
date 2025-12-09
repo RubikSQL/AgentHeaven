@@ -13,6 +13,7 @@ from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.debug_utils import raise_mismatch
 from ..utils.basic.hash_utils import fmt_hash
 from ..utils.basic.misc_utils import unique
+from ..utils.basic.progress_utils import Progress
 from ..utils.klop import KLOp
 from ..utils.vdb.vdb_utils import parse_encoder_embedder
 from ..klstore.base import BaseKLStore
@@ -343,7 +344,7 @@ class MongoKLEngine(BaseKLEngine):
         else:
             MongoKLStore._insert(self, kl, **kwargs)
 
-    def _batch_upsert(self, kls, **kwargs):
+    def _batch_upsert(self, kls, progress: Progress = None, **kwargs):
         """\
         Batch upsert KLs in the engine.
 
@@ -379,11 +380,13 @@ class MongoKLEngine(BaseKLEngine):
                     )
                 )
             if operations:
-                self.mdb.conn.bulk_write(operations, ordered=False)
+                result = self.mdb.conn.bulk_write(operations, ordered=False)
+                if progress is not None:
+                    progress.update(result.bulk_api_result.get("nModified", len(kls)))
         else:
-            MongoKLStore._batch_upsert(self, kls, **kwargs)
+            MongoKLStore._batch_upsert(self, kls, progress=progress, **kwargs)
 
-    def _batch_insert(self, kls, **kwargs):
+    def _batch_insert(self, kls, progress: Progress = None, **kwargs):
         """\
         Batch insert KLs in the engine.
 
@@ -419,9 +422,11 @@ class MongoKLEngine(BaseKLEngine):
                     )
                 )
             if operations:
-                self.mdb.conn.bulk_write(operations, ordered=False)
+                result = self.mdb.conn.bulk_write(operations, ordered=False)
+                if progress is not None:
+                    progress.update(result.bulk_api_result.get("nInserted", len(kls)))
         else:
-            MongoKLStore._batch_insert(self, kls, **kwargs)
+            MongoKLStore._batch_insert(self, kls, progress=progress, **kwargs)
 
     def _remove(self, key: int, **kwargs):
         """\
@@ -452,7 +457,7 @@ class MongoKLEngine(BaseKLEngine):
         else:
             MongoKLStore._remove(self, key, **kwargs)
 
-    def _batch_remove(self, keys, **kwargs):
+    def _batch_remove(self, keys, progress: Progress = None, **kwargs):
         """\
         Batch remove KLs from the engine.
 
@@ -471,7 +476,7 @@ class MongoKLEngine(BaseKLEngine):
             if not keys:
                 return
             ukf_ids = [self.adapter.parse_id(key) for key in keys]
-            self.mdb.conn.update_many(
+            result = self.mdb.conn.update_many(
                 filter={"_id": {"$in": ukf_ids}},
                 update={
                     "$unset": {
@@ -481,8 +486,10 @@ class MongoKLEngine(BaseKLEngine):
                 },
                 upsert=False,
             )
+            if progress is not None:
+                progress.update(result.modified_count or len(ukf_ids))
         else:
-            MongoKLStore._batch_remove(self, keys, **kwargs)
+            MongoKLStore._batch_remove(self, keys, progress=progress, **kwargs)
 
     def _clear(self):
         """\
