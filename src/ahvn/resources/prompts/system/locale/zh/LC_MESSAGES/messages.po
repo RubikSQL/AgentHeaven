@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-11-25 16:57+0800\n"
+"POT-Creation-Date: 2025-12-08 11:08+0800\n"
 "PO-Revision-Date: 2025-10-31 17:20+0800\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh\n"
@@ -51,19 +51,39 @@ msgstr[0] "...（省略了 %(cnt)s 条记录）"
 msgid "None"
 msgstr "无"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:31
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:45
 msgid "Task Descriptions"
 msgstr "任务描述"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:49
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:65
+msgid "Tools"
+msgstr "工具"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:67
+#, fuzzy
+msgid ""
+"You may use tools to help complete the task. To use a tool, output "
+"`<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should"
+" always be named parameters (ALWAYS use keyword arguments instead of "
+"positional arguments) in the tool's definition. Use one tool at a time "
+"and iterate until you have the final answer (report in "
+"`<output></output>`). The tool's output will be provided to you in the "
+"next message. Here are some tools you can use to complete the task:"
+msgstr ""
+"你可以使用工具来帮助完成任务。要使用工具，请输出 `<tool>tool_name(**tool_kwargs)</tool>`，其中 "
+"`**tool_kwargs` "
+"应始终是工具定义中的命名参数（注意始终使用关键字参数而不是位置参数）。每次使用一个工具并迭代，直到你得到最终答案（报告在 "
+"`<output></output>` 中）。工具的输出将会在下一条消息中提供给你。以下是一些你可以用来完成任务的工具："
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:82
 msgid "Examples"
 msgstr "示例"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:56
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:92
 msgid "Instructions"
 msgstr "指令"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:74
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:112
 msgid "New Instance"
 msgstr "新实例"
 

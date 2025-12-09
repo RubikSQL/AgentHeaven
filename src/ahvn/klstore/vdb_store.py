@@ -14,6 +14,7 @@ from ..ukf.base import BaseUKF
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
 from ..utils.basic.misc_utils import unique
+from ..utils.basic.progress_utils import Progress
 from ..utils.vdb.base import VectorDatabase
 from .base import BaseKLStore
 
@@ -108,15 +109,17 @@ class VectorKLStore(BaseKLStore):
         self.vdb.vdb.delete_nodes([ukf_id])
         self.vdb.vdb.add(self._batch_convert([kl]))
 
-    def _batch_upsert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_upsert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if not kls:
             return
         ukf_ids = [self.adapter.parse_id(kl.id) for kl in kls]
         self.vdb.vdb.delete_nodes(ukf_ids)
         self.vdb.vdb.add(self._batch_convert(kls))
+        if progress is not None:
+            progress.update(len(kls))
 
-    def _batch_insert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_insert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if not kls:
             return
@@ -126,6 +129,8 @@ class VectorKLStore(BaseKLStore):
         if not delta:
             return
         self.vdb.vdb.add(self._batch_convert(delta))
+        if progress is not None:
+            progress.update(len(delta))
 
     def _remove(self, key: int, **kwargs) -> bool:
         if key not in self:
@@ -133,7 +138,7 @@ class VectorKLStore(BaseKLStore):
         self.vdb.vdb.delete_nodes([self.adapter.parse_id(key)])
         return True
 
-    def _batch_remove(self, keys: Iterable[int], **kwargs):
+    def _batch_remove(self, keys: Iterable[int], progress: Progress = None, **kwargs):
         keys = unique(keys)  # Keeping only unique keys
         if not keys:
             return
@@ -141,6 +146,8 @@ class VectorKLStore(BaseKLStore):
         if not ukf_ids:
             return
         self.vdb.vdb.delete_nodes(ukf_ids)
+        if progress is not None:
+            progress.update(len(ukf_ids))
 
     def __len__(self) -> int:
         return len(self.vdb._get_all_nodes())

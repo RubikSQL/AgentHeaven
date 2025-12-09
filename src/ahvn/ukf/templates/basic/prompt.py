@@ -5,7 +5,6 @@ __all__ = [
 ]
 
 from .resource import ResourceUKFT, list_composer
-from ...types import UKFShortTextType
 from ...base import ptags
 from ...registry import register_ukft
 from ....utils.basic.jinja_utils import load_jinja_env, create_jinja
@@ -13,8 +12,7 @@ from ....utils.basic.config_utils import hpj, HEAVEN_CM
 from ....utils.basic.file_utils import exists_file, get_file_basename, has_file_ext
 from ....utils.basic.hash_utils import md5hash, fmt_hash
 
-from typing import Union, Set, Optional, List, Dict, Any, ClassVar
-from pydantic import Field, field_validator
+from typing import Union, Optional, List, Dict, Any, ClassVar
 from jinja2 import Environment
 
 import tempfile
@@ -30,15 +28,14 @@ def prompt_composer(kl, **kwargs):
     automatically rendering the default entry template with the provided kwargs.
     This makes Prompt behave like a function.
 
+    To incorporate custom logic in prompt generation, consider creating a new
+    composer function instead of manually rendering the prompt each time.
+
     Recommended Knowledge Types:
         PromptUKFT
 
     Args:
         kl (BaseUKF): Knowledge object containing prompt resource data.
-        entry (str, optional): Template filename to render. Defaults to the entry
-            specified in the knowledge object's content_resources or "default.jinja".
-        lang (str, optional): Language code for this rendering. Defaults to the lang
-            specified in the knowledge object's content_resources or config.
         **kwargs: Template variables passed to the Jinja2 template for rendering.
 
     Returns:
@@ -52,9 +49,7 @@ def prompt_composer(kl, **kwargs):
         >>> prompt_composer(kl, code="def add(a, b): ...", examples=[])
         "You are a skillful Python expert..."
     """
-    entry = kwargs.get("entry", None) or kl.content_resources.get("default_entry") or "default.jinja"
-    lang = kwargs.get("lang", None) or kl.content_resources.get("lang") or HEAVEN_CM.get("prompts.lang")
-    return kl.render(entry=entry, lang=lang, **{k: v for k, v in kwargs.items() if k not in ["entry", "lang"]})
+    return kl.render(**kwargs)
 
 
 def prompt_list_composer(kl, ext: Union[None, str, List[str]] = "jinja;jinja2;j2;txt", **kwargs):
@@ -237,6 +232,35 @@ class PromptUKFT(ResourceUKFT):
         create_jinja(path=tmp_path, entry="default.jinja", content=content, **(jinja_kwargs or dict()))
         return cls.from_path(path=tmp_path, default_entry="default.jinja", name=name or "default", lang=lang, binds=binds, keep_path=False, **updates)
 
+    def bind(self, **binds) -> "PromptUKFT":
+        """\
+        An inplace operation to add default template variables to bind during rendering.
+
+        Args:
+            **binds: Template variables to bind as a dictionary of key-values.
+
+        Returns:
+            self: The PromptUKFT instance (for chaining).
+        """
+        self.content_resources["binds"] = (self.get("binds") or dict()) | binds
+        return self
+
+    def unbind(self, *keys: str) -> "PromptUKFT":
+        """\
+        An inplace operation to remove default template variables from binding during rendering.
+
+        Args:
+            *keys: Template variable keys to unbind.
+
+        Returns:
+            self: The PromptUKFT instance (for chaining).
+        """
+        binds = self.get("binds") or dict()
+        for key in keys:
+            binds.pop(key, None)
+        self.content_resources["binds"] = binds
+        return self
+
     def to_env(self, path: Optional[str] = None, lang: Optional[str] = None) -> Environment:
         """\
         Load the Jinja2 environment for this prompt resource.
@@ -252,7 +276,7 @@ class PromptUKFT(ResourceUKFT):
         Returns:
             Environment: Jinja2 Environment object for rendering templates.
         """
-        lang = lang or self.content_resources.get("lang")
+        lang = lang or self.get("lang")
         with self(path=path, overwrite=False, cleanup=False) as temp_path:
             try:
                 env = load_jinja_env(temp_path, lang=lang)
@@ -293,12 +317,15 @@ class PromptUKFT(ResourceUKFT):
             ...     hints=["Use simple arithmetic"]
             ... )
         """
-        entry = entry or self.content_resources.get("default_entry")
-        lang = lang or self.content_resources.get("lang")
+        entry = entry or self.get("default_entry") or "default.jinja"
+        lang = lang or self.get("lang") or HEAVEN_CM.get("prompts.lang")
         env = self.to_env(path=path, lang=lang)
         tmpl = env.get_template(name=entry)
-        binds = self.content_resources.get("binds") or dict()
+        binds = self.get("binds") or dict()
         return tmpl.render(**(binds | kwargs))
+
+    def format(self, **kwargs) -> str:
+        return self.text(**kwargs)
 
     def list_templates(self) -> List[str]:
         """\
