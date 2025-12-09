@@ -66,7 +66,7 @@ class TestScanKLEngine:
     @pytest.fixture
     def populated_klstore(self, minimal_klstore_config):
         """Create a KLStore with test experiences."""
-        from tests.fixtures import UniversalFactory, cleanup_instance
+        from fixtures import UniversalFactory, cleanup_instance
 
         store_type, backend_args = minimal_klstore_config
         klstore = UniversalFactory.create_klstore(store_type, backend_args, label="scan_test")
