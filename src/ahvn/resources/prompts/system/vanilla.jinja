@@ -1,0 +1,9 @@
+{#-
+Required:
+    prompt (str): The prompt text.
+Optional:
+    None
+Filters:
+    None
+-#}
+{{ prompt.split('\n') | map('tr') | join('\n') }}

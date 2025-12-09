@@ -30,6 +30,7 @@ _SUBMODULES = [
     "parallel_utils",
     "parser_utils",
     "path_utils",
+    "progress_utils",
     "request_utils",
     "rnd_utils",
     "serialize_utils",

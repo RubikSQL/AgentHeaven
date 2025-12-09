@@ -11,6 +11,8 @@ to new inputs, without requiring explicit function implementation.
 
 __all__ = [
     "autotask",
+    "autotask_prompt_composer",
+    "build_autotask_base_prompt",
 ]
 
 from typing import List, Dict, Any, Callable, Optional, Iterable, Union
@@ -26,14 +28,68 @@ from ...cache import CacheEntry
 from ...ukf.templates.basic.prompt import PromptUKFT
 
 
+def autotask_prompt_composer(
+    kl: PromptUKFT,
+    system: Optional[str] = None,
+    descriptions: Optional[Union[str, List[str]]] = None,
+    examples: Optional[Iterable[Union[Dict[str, Any], CacheEntry]]] = None,
+    instructions: Optional[Union[str, List[str]]] = None,
+    instance: Optional[CacheEntry] = None,
+    **kwargs,
+) -> str:
+    system = system or kl.get("binds", dict()).get("system", "")
+    system = system or kl.get("binds", dict()).get("default_system", "")
+    descriptions = descriptions or kl.get("binds", dict()).get("descriptions", list())
+    desc_list = (([descriptions] if isinstance(descriptions, str) else descriptions) if descriptions else []) + kl.get("binds", dict()).get(
+        "default_descriptions", list()
+    )
+    instructions = instructions or kl.get("binds", dict()).get("instructions", list())
+    inst_list = (([instructions] if isinstance(instructions, str) else instructions) if instructions else []) + kl.get("binds", dict()).get(
+        "default_instructions", list()
+    )
+
+    examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
+
+    return kl.format(
+        composer="prompt",
+        system=system,
+        descriptions=list(filter(lambda x: x is not None, desc_list)),
+        instructions=list(filter(lambda x: x is not None, inst_list)),
+        instance=instance,
+        examples=examples_list,
+        **kwargs,
+    )
+
+
+def build_autotask_base_prompt() -> PromptUKFT:
+    prompt_kl = PromptUKFT.from_path(
+        "& prompts/system",
+        name="autotask",
+        default_entry="prompt.jinja",
+        binds={
+            "default_system": "You are a helpful AI assistant. Your task is to complete a task given its description, examples, and new inputs. Infer the task's logic from the examples and apply it to the new inputs.",
+            "default_descriptions": list(),
+            "default_instructions": [
+                "Keep your reasoning or response as brief as possible.",
+                "The final answer must be a string that supports python `repr`.",
+                "Wrap the final answer in `<output></output>` tags.",
+            ],
+        },
+    )
+    prompt_kl.set_composer("autotask", autotask_prompt_composer)
+    return prompt_kl
+
+
 def autotask(
     prompt: Optional[PromptUKFT] = None,
     descriptions: Optional[Union[str, List[str]]] = None,
     system: Optional[str] = None,
     examples: Optional[Iterable[Union[Dict[str, Any], CacheEntry]]] = None,
-    instructions: Optional[List[str]] = None,
+    instructions: Optional[Union[str, List[str]]] = None,
     lang: Optional[str] = None,
     llm_args: Optional[Dict] = None,
+    capture: Optional[Dict] = None,
+    **kwargs,
 ) -> Callable:
     """\
     Create a function that is automatically implemented using LLM inference.
@@ -56,6 +112,10 @@ def autotask(
         lang (str, optional): Language code for localization (e.g., "en" for English).
         llm_args (Dict, optional): Arguments for the LLM model (e.g., {"model": "gemini-flash"}).
             If None, uses default LLM configuration.
+        capture (Dict, optional): Capture settings for logging or debugging.
+            If provided, it will be used to capture the execution details.
+            - 'prompt': The constructed prompt object.
+        kwargs: Additional keyword arguments.
 
     Returns:
         Any: The LLM-inferred output for the given inputs, parsed from the response.
@@ -89,29 +149,21 @@ def autotask(
         7   # or maybe 6/8/9, depending on LLM interpretation
     """
     if prompt is None:
-        if descriptions is None:
-            raise ValueError("Either `prompt` or `descriptions` must be provided to define the task.")
-        system_prompt = (
-            system
-            or "You are a helpful AI assistant. Your task is to complete a task given its description, examples, and new inputs. Infer the task's logic from the examples and apply it to the new inputs."
-        )
-        desc_list = [descriptions] if isinstance(descriptions, str) else descriptions
-        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
-        instr_list = (([instructions] if isinstance(instructions, str) else instructions) or list()) + [
-            "Keep your reasoning or response as brief as possible.",
-            "The final answer must be a string that supports python `repr`.",
-            "Wrap the final answer in `<output></output>` tags.",
-        ]
-        prompt = PromptUKFT.from_path(
-            "& prompts/system",
-            default_entry="prompt.jinja",
-            binds={
-                "system": system_prompt,
-                "descriptions": list(filter(lambda x: x is not None, desc_list)),
-                "examples": examples_list,
-                "instructions": list(filter(lambda x: x is not None, instr_list)),
-            },
-        )
+        prompt = build_autotask_base_prompt()
+    else:
+        prompt = prompt.clone()
+    prompt = prompt.bind(
+        **(
+            ({"system": system} if system is not None else {})
+            | ({"descriptions": descriptions} if descriptions is not None else {})
+            | ({"instructions": instructions} if instructions is not None else {})
+            | kwargs
+        ),
+    )
+    if capture is not None:
+        capture["prompt"] = prompt
+
+    examples_reference = {"examples": examples}
     llm = LLM(**(llm_args or dict()))
 
     def autotask_function(
@@ -121,7 +173,12 @@ def autotask(
         hints = ([hints] if isinstance(hints, str) else hints) or list()
         instance = CacheEntry.from_args(**inputs, output=..., metadata={"hints": hints})
         try:
-            prompt_str = prompt.text(lang=lang, instance=instance).rstrip()
+            prompt_str = prompt.format(
+                composer="autotask",
+                examples=examples_reference.get("examples", list()),
+                instance=instance,
+                lang=lang,
+            ).rstrip()
         except Exception as e:
             raise AutoFuncError(f"Failed to render prompt for autotask function.\nInstance:\n{instance}\nError: {e}") from e
         logger.debug(f"Autotask function prompt:\n{prompt_str}")

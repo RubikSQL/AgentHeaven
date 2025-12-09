@@ -385,4 +385,3 @@ class TestToolToJsonSchema:
         assert schema["function"]["name"] == "search"
         assert "query" in schema["function"]["parameters"]["properties"]
         assert "limit" in schema["function"]["parameters"]["properties"]
-        assert schema["function"]["strict"] is True

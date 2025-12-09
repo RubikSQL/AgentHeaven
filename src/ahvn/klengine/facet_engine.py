@@ -3,7 +3,7 @@ __all__ = [
 ]
 
 from typing import Any, Dict, Iterable, List, Optional, Callable
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..utils.db import Database
@@ -12,6 +12,7 @@ from ..utils.klop import KLOp
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
 from ..utils.basic.debug_utils import raise_mismatch
+from ..utils.basic.progress_utils import Progress
 
 logger = get_logger(__name__)
 
@@ -19,7 +20,6 @@ from .base import BaseKLEngine
 from ..ukf.base import BaseUKF
 from ..adapter.db import ORMUKFAdapter
 from ..klstore.db_store import DatabaseKLStore
-from ..llm.base import LLM
 
 
 class FacetKLEngine(BaseKLEngine):
@@ -263,25 +263,25 @@ class FacetKLEngine(BaseKLEngine):
             return
         DatabaseKLStore._insert(self, kl, **kwargs)
 
-    def _batch_upsert(self, kls, **kwargs):
+    def _batch_upsert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        DatabaseKLStore._batch_upsert(self, kls, **kwargs)
+        DatabaseKLStore._batch_upsert(self, kls, progress=progress, **kwargs)
 
-    def _batch_insert(self, kls, **kwargs):
+    def _batch_insert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        DatabaseKLStore._batch_insert(self, kls, **kwargs)
+        DatabaseKLStore._batch_insert(self, kls, progress=progress, **kwargs)
 
     def _remove(self, key: int, **kwargs):
         if self.inplace:
             return
         DatabaseKLStore._remove(self, key, **kwargs)
 
-    def _batch_remove(self, keys, **kwargs):
+    def _batch_remove(self, keys, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        DatabaseKLStore._batch_remove(self, keys, **kwargs)
+        DatabaseKLStore._batch_remove(self, keys, progress=progress, **kwargs)
 
     def _clear(self):
         if self.inplace:

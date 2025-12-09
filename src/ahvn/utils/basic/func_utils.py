@@ -1,5 +1,6 @@
 __all__ = [
     "code2func",
+    "funcwrap",
     "parse_docstring",
     "synthesize_docstring",
     "synthesize_def",
@@ -9,6 +10,7 @@ __all__ = [
 from docstring_parser import parse
 from typing import Callable, Optional, Dict, Any, List
 import inspect
+import functools
 import re
 
 from .type_utils import (
@@ -686,3 +688,25 @@ def synthesize_signature(
 
     args_str = ", ".join(arg_list)
     return f"{name}({args_str})"
+
+
+def funcwrap(exec_func: Callable, sig_func: Callable) -> Callable:
+    """\
+    Create a wrapper function that calls `exec_func` but has the signature and metadata of `sig_func`.
+
+    Args:
+        exec_func: The function to be called (the implementation).
+        sig_func: The function whose signature and metadata should be adopted.
+
+    Returns:
+        Callable: A wrapper function.
+    """
+    sig = inspect.signature(sig_func)
+
+    @functools.wraps(sig_func)
+    def wrapper(*args, **kwargs):
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        return exec_func(**bound.arguments)
+
+    return wrapper

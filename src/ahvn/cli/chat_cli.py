@@ -232,7 +232,7 @@ Examples:
     )
     @click.option("--cache/--no-cache", default=True, help="Enable or disable caching of responses. Default: enabled.")
     @click.option("--stream/--no-stream", default=True, help="Enable streaming mode for real-time response. Default: enabled.")
-    @click.option("--preset", "-p", help="LLM preset to use.")
+    @click.option("--preset", "-p", help="LLM preset to use. Default to 'chat'.")
     @click.option("--model", "-m", help="LLM model to use.")
     @click.option("--provider", "-b", help="LLM provider to use.")
     @click.option("--verbose", "-v", is_flag=True, help="Show detailed configuration and debug information.")
@@ -251,12 +251,10 @@ Examples:
         Chat with an LLM using AgentHeaven.
         """
 
-        click.echo(color_grey("Session started. Type /bye or /exit to exit, /help for more commands."))
-
         try:
             llm = LLM(
                 cache=(None if not cache else DiskCache(hpj(HEAVEN_CM.get("core.cache_path", "~/.ahvn/cache/"), "session_cli", abs=True))),
-                preset=preset,
+                preset="chat" if preset is None else preset,
                 model=model,
                 provider=provider,
             )
@@ -318,7 +316,7 @@ Examples:
     @click.argument("prompt", required=False)
     @click.option("--prompt", help="The prompt text to embed. Cannot be used with -i.")
     @click.option("--cache/--no-cache", default=True, help="Enable or disable caching of embeddings. Default: enabled.")
-    @click.option("--preset", "-p", help="LLM preset to use.")
+    @click.option("--preset", "-p", help="LLM preset to use. Default to 'embedder'.")
     @click.option("--model", "-m", help="LLM model to use.")
     @click.option("--provider", "-b", help="LLM provider to use.")
     @click.option("--verbose", "-v", is_flag=True, help="Show detailed configuration and debug information.")
@@ -385,7 +383,7 @@ Examples:
     )
     @click.option("--cache/--no-cache", default=True, help="Enable or disable caching of responses. Default: enabled.")
     @click.option("--stream/--no-stream", default=True, help="Enable streaming mode for real-time response. Default: enabled.")
-    @click.option("--preset", "-p", help="LLM preset to use.")
+    @click.option("--preset", "-p", help="LLM preset to use. Default to 'chat'.")
     @click.option("--model", "-m", help="LLM model to use.")
     @click.option("--provider", "-b", help="LLM provider to use.")
     @click.option("--verbose", "-v", is_flag=True, help="Show detailed configuration and debug information.")
@@ -412,7 +410,7 @@ Examples:
         try:
             llm = LLM(
                 cache=(None if not cache else DiskCache(hpj(HEAVEN_CM.get("core.cache_path", "~/.ahvn/cache/"), "session_cli", abs=True))),
-                preset=preset,
+                preset="chat" if preset is None else preset,
                 model=model,
                 provider=provider,
             )

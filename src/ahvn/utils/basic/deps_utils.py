@@ -52,7 +52,7 @@ def get_default_dependencies() -> dict:
         ),
         "postgresql": DependencyInfo(
             name="postgresql",
-            packages=["psycopg2"],
+            packages=["psycopg2-binary"],
             install="pip install psycopg2-binary",
             description="PostgreSQL database support",
             required_for=["database", "postgresql_connections"],

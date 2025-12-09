@@ -89,18 +89,38 @@ def register_config_commands(cli, cm: Optional["ConfigManager"] = None, name: st
 
             click.echo(color_error(f"Failed to unset {key}."), err=True)
 
-    @config.command("copy", help=f"Copy a config value to local config. Example: {name} config copy [-g] KEY")
-    @click.argument("key", metavar="KEY", nargs=1, required=True)
+    @config.command("copy", help=f"Copy a config value to local config. Example: {name} config copy [-g] [KEY]")
+    @click.argument("key", metavar="KEY", nargs=1, required=False, default=None)
     @click.option("--global", "-g", "from_default", is_flag=True, help="Copy from system (default) config instead of global config")
-    def copy_config(key, from_default):
+    @click.option("--yes", "-y", "skip_confirm", is_flag=True, help="Skip confirmation prompt when copying all configs")
+    def copy_config(key, from_default, skip_confirm):
         """\
         Copy a config value from global or system config to local config.
         By default, copies from global config. Use -g to copy from system (default) config.
+        If no key is specified, copies all configs (requires confirmation).
         """
         from ahvn.utils.basic.config_utils import dget
 
         source_level = "system" if from_default else "global"
         source_config = cm.get(None, level=source_level)
+
+        # If no key specified, copy all configs
+        if not key:
+            if not skip_confirm:
+                from ahvn.utils.basic.color_utils import color_warning
+
+                click.echo(color_warning(f"This will replace ALL local config with {source_level} config."))
+                if not click.confirm("Are you sure you want to continue?"):
+                    click.echo("Aborted.")
+                    return
+            # Replace entire local config with source config
+            cm._local_config = dict(source_config)
+            cm.save(level="local")
+            from ahvn.utils.basic.color_utils import color_success
+
+            click.echo(color_success(f"Successfully copied all configs from {source_level} to local."))
+            return
+
         value = dget(source_config, key)
         if value is None:
             from ahvn.utils.basic.color_utils import color_error

@@ -3,9 +3,11 @@ __all__ = [
     "Messages",
     "LLMChunk",
     "LLMResponse",
+    "exec_tool_calls",
     "LLM",
     "gather_assistant_message",
     "resolve_llm_config",
+    "format_messages",
 ]
 
 from ..utils.basic.config_utils import encrypt_config, hpj
@@ -38,7 +40,7 @@ def _normalize_tool_call_delta(tool_call) -> Dict[str, Any]:
         return tool_call
     # Handle litellm ChoiceDeltaToolCall objects
     result = {
-        "index": getattr(tool_call, "index", 0),
+        "index": getattr(tool_call, "index", None),
         "id": getattr(tool_call, "id", None),
         "type": getattr(tool_call, "type", "function"),
     }
@@ -56,9 +58,9 @@ def _merge_tool_call_deltas(accumulated: List[Dict[str, Any]], deltas: List[Dict
     Merge incremental tool call deltas into accumulated tool calls by index.
     """
     for delta in deltas:
-        idx = delta.get("index", 0)
+        idx = delta.get("index", None) or (len(accumulated) - bool(delta.get("function", {}).get("name") is None))
         # Extend the list if necessary
-        while len(accumulated) <= idx:
+        while idx >= len(accumulated):
             accumulated.append({"id": None, "type": "function", "function": {"name": "", "arguments": ""}})
         # Merge delta into accumulated
         if delta.get("id"):
@@ -68,7 +70,7 @@ def _merge_tool_call_deltas(accumulated: List[Dict[str, Any]], deltas: List[Dict
         if "function" in delta:
             func_delta = delta["function"]
             if func_delta.get("name"):
-                accumulated[idx]["function"]["name"] = (accumulated[idx]["function"].get("name") or "") + func_delta["name"]
+                accumulated[idx]["function"]["name"] = func_delta["name"]
             if func_delta.get("arguments"):
                 accumulated[idx]["function"]["arguments"] = (accumulated[idx]["function"].get("arguments") or "") + func_delta["arguments"]
     return accumulated
@@ -103,47 +105,75 @@ def _normalize_tools(tools: Optional[List[Union[Dict, "ToolSpec"]]]) -> tuple:
     return jsonschema_list, toolspec_dict
 
 
-def _execute_tool_calls(tool_calls: List[Dict], toolspec_dict: Dict[str, Optional["ToolSpec"]]) -> tuple:
+def exec_tool_calls(tool_calls: List[Dict], toolspec_dict: Dict[str, Optional["ToolSpec"]]) -> tuple:
     """\
-    Execute tool calls and return tool messages and results.
+    Execute tool calls and return standardized tool messages/results.
+
+    Compatibility:
+    - Accepts tool calls with or without a ``function`` layer (e.g., ``{"name": "foo", "arguments": "{}"}``).
+    - Missing or empty ``id`` defaults to an empty string.
+    - ``arguments`` may be a dict or a JSON string; non-dict inputs are parsed via ``json.loads`` with graceful errors.
 
     Args:
-        tool_calls: List of tool call dicts from LLM response.
-        toolspec_dict: Mapping from tool name to ToolSpec (or None if not available).
+        tool_calls: List of tool call dicts from LLM responses (raw or parsed).
+        toolspec_dict: Mapping from tool name to ``ToolSpec`` (or None if not available).
 
     Returns:
         tuple: (tool_messages, tool_results)
-            - tool_messages: List of tool message dicts in OpenAI format for conversation continuation
-            - tool_results: List of result content strings (just the returned values)
+            - tool_messages: List of tool message dicts in OpenAI format for conversation continuation.
+            - tool_results: List of result content strings (just the returned values).
+
+    Raises:
+        ValueError: If a tool name is missing or the ToolSpec is unavailable.
     """
+
     tool_messages = []
     tool_results = []
     for tc in tool_calls:
-        tool_call_id = tc.get("id", "")
-        func_info = tc.get("function", {})
-        name = func_info.get("name", "")
-        args_str = func_info.get("arguments", "{}")
+        tc = tc or dict()
+        func_info = tc.get("function") if isinstance(tc.get("function"), dict) else dict()
+        name = (func_info.get("name") or tc.get("name") or "").strip()
+        tool_call_id = tc.get("id") or ""
+        args_raw = func_info.get("arguments") if func_info else tc.get("arguments", "{}")
+
+        if not name:
+            raise ValueError("Tool call missing function name.")
 
         toolspec = toolspec_dict.get(name)
         if toolspec is None:
             raise ValueError(f"Cannot execute tool '{name}': no ToolSpec available. " "tool_messages/tool_results requires all tools to be ToolSpec instances.")
 
-        try:
-            args = json.loads(args_str)
-            result = toolspec(**args)
-            content = str(result)
-        except Exception as e:
-            content = f"Error: {e}"
+        parse_error = None
+        if isinstance(args_raw, dict):
+            args = args_raw
+        else:
+            raw_str = args_raw if args_raw is not None else "{}"
+            try:
+                args = json.loads(raw_str)
+            except Exception as exc:
+                parse_error = f"Failed to parse arguments '{raw_str}' for tool '{name}': {exc}."
+                args = dict()
 
+        if parse_error:
+            content = parse_error
+        else:
+            try:
+                result = toolspec(**args)
+                content = result
+            except Exception as exc:
+                content = f"Error executing tool '{name}': {exc}."
+
+        content_str = str(content)
         tool_messages.append(
             {
                 "role": "tool",
                 "tool_call_id": tool_call_id,
                 "name": name,
-                "content": content,
+                "content": content_str,
             }
         )
-        tool_results.append(content)
+        tool_results.append(content_str)
+
     return tool_messages, tool_results
 
 
@@ -216,8 +246,7 @@ class LLMChunk:
         return {
             "role": "assistant",
             "content": self.text,
-            "tool_calls": self.tool_calls,
-        }
+        } | ({"tool_calls": self.tool_calls} if self.tool_calls else {})
 
     def to_message_delta(self) -> Dict[str, Any]:
         """\
@@ -226,8 +255,7 @@ class LLMChunk:
         return {
             "role": "assistant",
             "content": self.delta_text,
-            "tool_calls": self.delta_tool_calls,
-        }
+        } | ({"tool_calls": self.delta_tool_calls} if self.delta_tool_calls else {})
 
     def to_dict(self) -> Dict[str, Any]:
         """\
@@ -654,11 +682,11 @@ class LLM(object):
                     "text": "",
                     "tool_calls": response.tool_calls,
                     "content": "",
-                    "message": {"role": "assistant", "content": "", "tool_calls": response.tool_calls},
+                    "message": {"role": "assistant", "content": ""} | ({"tool_calls": response.tool_calls} if response.tool_calls else {}),
                 }
                 # Execute tools if tool_messages or tool_results requested
                 if "tool_messages" in include or "tool_results" in include:
-                    tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                    tool_messages, tool_results = exec_tool_calls(response.tool_calls, toolspec_dict)
                     final_delta["tool_messages"] = tool_messages
                     final_delta["tool_results"] = tool_results
                 yield _llm_response_formatting(delta=final_delta, include=include, reduce=reduce)
@@ -714,11 +742,11 @@ class LLM(object):
                     "text": "",
                     "tool_calls": response.tool_calls,
                     "content": "",
-                    "message": {"role": "assistant", "content": "", "tool_calls": response.tool_calls},
+                    "message": {"role": "assistant", "content": ""} | ({"tool_calls": response.tool_calls} if response.tool_calls else {}),
                 }
                 # Execute tools if tool_messages or tool_results requested
                 if "tool_messages" in include or "tool_results" in include:
-                    tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                    tool_messages, tool_results = exec_tool_calls(response.tool_calls, toolspec_dict)
                     final_delta["tool_messages"] = tool_messages
                     final_delta["tool_results"] = tool_results
                 yield _llm_response_formatting(delta=final_delta, include=include, reduce=reduce)
@@ -789,7 +817,7 @@ class LLM(object):
             result_dict = response.to_dict()
             # Execute tools if tool_messages or tool_results requested
             if ("tool_messages" in include or "tool_results" in include) and response.tool_calls:
-                tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                tool_messages, tool_results = exec_tool_calls(response.tool_calls, toolspec_dict)
                 result_dict["tool_messages"] = tool_messages
                 result_dict["tool_results"] = tool_results
             return _llm_response_formatting(result_dict, include=include, messages=formatted_messages, reduce=reduce)
@@ -829,7 +857,7 @@ class LLM(object):
             result_dict = response.to_dict()
             # Execute tools if tool_messages or tool_results requested
             if ("tool_messages" in include or "tool_results" in include) and response.tool_calls:
-                tool_messages, tool_results = _execute_tool_calls(response.tool_calls, toolspec_dict)
+                tool_messages, tool_results = exec_tool_calls(response.tool_calls, toolspec_dict)
                 result_dict["tool_messages"] = tool_messages
                 result_dict["tool_results"] = tool_results
             return _llm_response_formatting(result_dict, include=include, messages=formatted_messages, reduce=reduce)
@@ -890,7 +918,10 @@ class LLM(object):
         self,
         messages: Messages,
         tools: List[Union[Dict, "ToolSpec"]],
+        tool_choice: str = "required",
+        include: Optional[Union[str, List[str]]] = None,
         verbose: bool = False,
+        reduce: bool = True,
         **kwargs,
     ) -> List[Dict]:
         """\
@@ -902,7 +933,10 @@ class LLM(object):
         Args:
             messages: Conversation content.
             tools: List of tools (ToolSpec instances required for execution).
+            tool_choice: Tool choice setting. Defaults to "required".
+            include: Fields to include in the result. Defaults to ["tool_messages"].
             verbose: If True, logs the resolved request config.
+            reduce: If True, simplifies the output when possible.
             **kwargs: Per-call overrides for LLM config.
 
         Returns:
@@ -924,10 +958,10 @@ class LLM(object):
         return self.oracle(
             messages=messages,
             tools=tools,
-            tool_choice="required",
-            include=["tool_messages"],
+            tool_choice=tool_choice,
+            include=["tool_messages"] if include is None else include,
             verbose=verbose,
-            reduce=True,
+            reduce=reduce,
             **kwargs,
         )
 

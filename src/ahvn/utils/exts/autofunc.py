@@ -11,6 +11,8 @@ given function specification and inputs. It should support `Callable` and `ToolS
 
 __all__ = [
     "autofunc",
+    "autofunc_prompt_composer",
+    "build_autofunc_base_prompt",
 ]
 
 from typing import List, Dict, Any, Callable, Optional, Iterable, Union
@@ -27,14 +29,75 @@ from ...tool import ToolSpec
 from ...ukf.templates.basic.prompt import PromptUKFT
 
 
+def autofunc_prompt_composer(
+    kl: PromptUKFT,
+    func_spec: Union[Callable, ToolSpec],
+    system: Optional[str] = None,
+    descriptions: Optional[Union[str, List[str]]] = None,
+    examples: Optional[Iterable[Union[Dict[str, Any], CacheEntry]]] = None,
+    instructions: Optional[Union[str, List[str]]] = None,
+    instance: Optional[CacheEntry] = None,
+    **kwargs,
+) -> str:
+    if not isinstance(func_spec, ToolSpec):
+        func_spec = ToolSpec.from_function(func_spec)
+
+    system = system or kl.get("binds", dict()).get("system", "")
+    system = system or kl.get("binds", dict()).get("default_system", "")
+    descriptions = descriptions or kl.get("binds", dict()).get("descriptions", list())
+    desc_list = (
+        ["## Function Specification", f"```python\n{func_spec.code}\n```"]
+        + (([descriptions] if isinstance(descriptions, str) else descriptions) if descriptions else [])
+        + kl.get("binds", dict()).get("default_descriptions", list())
+    )
+    instructions = instructions or kl.get("binds", dict()).get("instructions", list())
+    inst_list = (([instructions] if isinstance(instructions, str) else instructions) if instructions else []) + kl.get("binds", dict()).get(
+        "default_instructions", list()
+    )
+
+    examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
+
+    return kl.format(
+        composer="prompt",
+        system=system,
+        descriptions=list(filter(lambda x: x is not None, desc_list)),
+        instructions=list(filter(lambda x: x is not None, inst_list)),
+        instance=instance,
+        examples=examples_list,
+        **kwargs,
+    )
+
+
+def build_autofunc_base_prompt() -> PromptUKFT:
+    prompt_kl = PromptUKFT.from_path(
+        "& prompts/system",
+        name="autofunc",
+        default_entry="prompt.jinja",
+        binds={
+            "default_system": "You are a skillful Python expert. Your task is to act as a function and produce output given its specification and inputs.",
+            "default_descriptions": list(),
+            "default_instructions": [
+                "Keep your reasoning or response as brief as possible.",
+                "The final answer must be a string that supports python `repr`.",
+                "Wrap the final answer in `<output></output>` tags.",
+            ],
+        },
+    )
+    prompt_kl.set_composer("autofunc", autofunc_prompt_composer)
+    return prompt_kl
+
+
 def autofunc(
     func_spec: Optional[Union[Callable, ToolSpec]] = None,
-    descriptions: Optional[Union[str, List[str]]] = None,
+    prompt: Optional[PromptUKFT] = None,
     system: Optional[str] = None,
+    descriptions: Optional[Union[str, List[str]]] = None,
     examples: Optional[Iterable[Union[Dict[str, Any], CacheEntry]]] = None,
     instructions: Optional[Union[str, List[str]]] = None,
     lang: Optional[str] = None,
     llm_args: Optional[Dict] = None,
+    capture: Optional[Dict] = None,
+    **kwargs,
 ) -> Callable:
     """\
     Create a function that is automatically implemented using LLM inference.
@@ -47,13 +110,21 @@ def autofunc(
 
     Args:
         func_spec (Union[Callable, ToolSpec], optional): The function specification.
-        descriptions (Union[str, List[str]], optional): Additional descriptions for the task.
+        prompt (Optional[PromptUKFT]): A pre-defined PromptUKFT template to use for the function.
+            If None, a default prompt will be constructed using the provided func_spec and other parameters.
+            If not None, the prompt will be used directly and other parameters (func_spec, descriptions, system, examples, instructions) will be ignored.
+            (TODO: behavior of other parameters -> update prompt)
         system (str, optional): System prompt to guide the LLM's behavior.
+        descriptions (Union[str, List[str]], optional): Additional descriptions for the task.
         examples (Iterable[Union[Dict[str, Any], CacheEntry]], optional): Examples demonstrating
             the desired input-output behavior.
         instructions (Union[str, List[str]], optional): Additional instructions for the LLM.
         lang (str, optional): Language code for localization.
         llm_args (Dict, optional): Arguments for the LLM model.
+        capture (Dict, optional): Capture settings for logging or debugging.
+            If provided, it will be used to capture the execution details.
+            - 'prompt': The constructed prompt object.
+        kwargs: Additional keyword arguments.
 
     Returns:
         Callable: A function that takes keyword arguments matching the function specification
@@ -87,37 +158,28 @@ def autofunc(
         >>> add(x=3, y=4)
         7
     """
+    if prompt is None:
+        prompt = build_autofunc_base_prompt()
+    else:
+        prompt = prompt.clone()
+    prompt = prompt.bind(
+        **(
+            ({"system": system} if system is not None else {})
+            | ({"descriptions": descriptions} if descriptions is not None else {})
+            | ({"instructions": instructions} if instructions is not None else {})
+            | kwargs
+        ),
+    )
+    if capture is not None:
+        capture["prompt"] = prompt
+
+    examples_reference = {"examples": examples}
+
+    llm = LLM(**(llm_args or dict()))
 
     def _create_autofunc(func_spec: Union[Callable, ToolSpec]) -> Callable:
         if not isinstance(func_spec, ToolSpec):
-            func_spec_obj = ToolSpec.from_function(func_spec)
-        else:
-            func_spec_obj = func_spec
-
-        system_prompt = system or "You are a skillful Python expert. Your task is to act as a function and produce output given its specification and inputs."
-        desc_list = (([descriptions] if isinstance(descriptions, str) else descriptions) if descriptions else []) + [
-            "## Function Specification",
-            f"```python\n{func_spec_obj.code}\n```",
-        ]
-        examples_list = [example if isinstance(example, CacheEntry) else CacheEntry.from_dict(data=example) for example in examples] if examples else list()
-        instr_list = (([instructions] if isinstance(instructions, str) else instructions) if instructions else []) + [
-            "Keep your reasoning or response as brief as possible.",
-            "The final answer must be a string that supports python `repr`.",
-            "Wrap the final answer in `<output></output>` tags.",
-        ]
-
-        prompt = PromptUKFT.from_path(
-            "& prompts/system",
-            default_entry="prompt.jinja",
-            binds={
-                "system": system_prompt,
-                "descriptions": list(filter(lambda x: x is not None, desc_list)),
-                "examples": examples_list,
-                "instructions": list(filter(lambda x: x is not None, instr_list)),
-            },
-        )
-
-        llm = LLM(**(llm_args or dict()))
+            func_spec = ToolSpec.from_function(func_spec, parse_docstring=True)
 
         def autofunc_function(
             hints: Optional[Union[str, List[str]]] = None,
@@ -126,7 +188,13 @@ def autofunc(
             hints = ([hints] if isinstance(hints, str) else hints) or list()
             instance = CacheEntry.from_args(**inputs, output=..., metadata={"hints": hints})
             try:
-                prompt_str = prompt.text(lang=lang, instance=instance).rstrip()
+                prompt_str = prompt.format(
+                    composer="autofunc",
+                    func_spec=func_spec,
+                    examples=examples_reference.get("examples", list()),
+                    instance=instance,
+                    lang=lang,
+                ).rstrip()
             except Exception as e:
                 raise AutoFuncError(f"Failed to render prompt for autofunc function.\nInstance:\n{instance}\nError: {e}") from e
             logger.debug(f"Autofunc function prompt:\n{prompt_str}")
@@ -150,22 +218,10 @@ def autofunc(
 
         return autofunc_function
 
-    if (
-        func_spec is not None
-        and callable(func_spec)
-        and descriptions is None
-        and system is None
-        and examples is None
-        and instructions is None
-        and lang is None
-        and llm_args is None
-    ):
-        return _create_autofunc(func_spec)
-
     if func_spec is not None:
-        return _create_autofunc(func_spec)
+        return _create_autofunc(func_spec=func_spec)
 
-    def decorator(func: Callable) -> Callable:
-        return _create_autofunc(func)
+    def decorator(func_spec: Union[Callable, ToolSpec]) -> Callable:
+        return _create_autofunc(func_spec=func_spec)
 
     return decorator

@@ -18,13 +18,14 @@ from ..utils.klop import KLOp
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
 from ..utils.basic.debug_utils import raise_mismatch
+from ..utils.basic.progress_utils import Progress
 
 from .base import BaseKLEngine
 from ..ukf.base import BaseUKF
+from ..ukf.templates.basic.dummy import DummyUKFT
 from ..adapter.vdb import VdbUKFAdapter
 from ..klstore.vdb_store import VectorKLStore
 from ..utils.vdb.base import VectorDatabase
-from ..llm.base import LLM
 
 logger = get_logger(__name__)
 
@@ -113,7 +114,7 @@ class VectorKLEngine(BaseKLEngine):
             return
         # Initialize the collection with a dummy node, then clear it
         # This ensures the collection schema is properly set up
-        dummy = BaseUKF(name="__dummy__", type="dummy", content="This is a dummy node to initialize the collection.")
+        dummy = DummyUKFT(name="<dummy>", content="This is a dummy node to initialize the collection.")
         self.vdb.vdb.add(self._batch_convert([dummy]))
         self.vdb.flush()
         # Remove the dummy node
@@ -121,9 +122,17 @@ class VectorKLEngine(BaseKLEngine):
         self.vdb.flush()
 
     def _batch_convert(self, kls: Iterable[BaseUKF]) -> List[TextNode]:
-        nodes = list()
-        keys_embeddings = self.vdb.batch_k_encode_embed(kls)
-        for kl, (key, embedding) in zip(kls, keys_embeddings):
+        kls_list = list(kls)
+        non_dummy_kls = [kl for kl in kls_list if not isinstance(kl, DummyUKFT)]
+        non_dymmy_key_embeddings = self.vdb.batch_k_encode_embed(non_dummy_kls) if non_dummy_kls else []
+        non_dummy_mapping = dict(zip([kl.id for kl in non_dummy_kls], non_dymmy_key_embeddings))
+        dummy_emb = self.vdb.k_embed("<dummy>")
+        nodes = []
+        for kl in kls_list:
+            if isinstance(kl, DummyUKFT):
+                key, embedding = "<dummy>", dummy_emb
+            else:
+                key, embedding = non_dummy_mapping[kl.id]
             nodes.append(self.adapter.from_ukf(kl=kl, key=key, embedding=embedding))
         return nodes
 
@@ -241,25 +250,25 @@ class VectorKLEngine(BaseKLEngine):
             return
         VectorKLStore._insert(self, kl, **kwargs)
 
-    def _batch_upsert(self, kls, **kwargs):
+    def _batch_upsert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_upsert(self, kls, **kwargs)
+        VectorKLStore._batch_upsert(self, kls, progress=progress, **kwargs)
 
-    def _batch_insert(self, kls, **kwargs):
+    def _batch_insert(self, kls, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_insert(self, kls, **kwargs)
+        VectorKLStore._batch_insert(self, kls, progress=progress, **kwargs)
 
     def _remove(self, key: int, **kwargs):
         if self.inplace:
             return
         VectorKLStore._remove(self, key, **kwargs)
 
-    def _batch_remove(self, keys, **kwargs):
+    def _batch_remove(self, keys, progress: Progress = None, **kwargs):
         if self.inplace:
             return
-        VectorKLStore._batch_remove(self, keys, **kwargs)
+        VectorKLStore._batch_remove(self, keys, progress=progress, **kwargs)
 
     def __len__(self) -> int:
         if self.inplace:

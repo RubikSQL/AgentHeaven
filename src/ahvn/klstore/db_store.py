@@ -3,6 +3,8 @@ __all__ = [
 ]
 
 from typing import Any, Generator, Optional, Iterable, Callable
+
+from ..utils.basic.progress_utils import Progress
 from sqlalchemy import delete, func as sqlalchemy_func, select, exists
 from sqlalchemy.orm import Session
 
@@ -119,7 +121,7 @@ class DatabaseKLStore(BaseKLStore):
             self._bulk_add_entities(session, [kl])
             session.commit()
 
-    def _batch_upsert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_upsert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if not kls:
             return
@@ -129,8 +131,10 @@ class DatabaseKLStore(BaseKLStore):
             session.execute(delete(self.adapter.main).where(self.adapter.main.id.in_(ukf_ids)))
             self._bulk_add_entities(session, kls)
             session.commit()
+        if progress is not None:
+            progress.update(len(kls))
 
-    def _batch_insert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_insert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if not kls:
             return
@@ -142,6 +146,8 @@ class DatabaseKLStore(BaseKLStore):
                 return
             self._bulk_add_entities(session, delta_kls)
             session.commit()
+        if progress is not None:
+            progress.update(len(delta_kls))
 
     def _remove(self, key: int, **kwargs) -> bool:
         with Session(self.db.engine) as session:
@@ -150,7 +156,7 @@ class DatabaseKLStore(BaseKLStore):
             session.commit()
             return result.rowcount > 0
 
-    def _batch_remove(self, keys: Iterable[int], **kwargs):
+    def _batch_remove(self, keys: Iterable[int], progress: Progress = None, **kwargs):
         keys = unique(keys)  # Keeping only unique keys
         if not keys:
             return
@@ -158,7 +164,9 @@ class DatabaseKLStore(BaseKLStore):
             self._remove_dim(session, keys)
             session.execute(delete(self.adapter.main).where(self.adapter.main.id.in_(keys)))
             session.commit()
-            return
+        if progress is not None:
+            progress.update(len(keys))
+        return
 
     def __len__(self) -> int:
         with Session(self.db.engine) as session:

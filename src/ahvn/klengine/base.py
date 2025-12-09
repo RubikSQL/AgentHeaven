@@ -5,6 +5,7 @@ __all__ = [
 from ..utils.basic.misc_utils import unique
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
+from ..utils.basic.progress_utils import Progress, TqdmProgress, NoProgress
 
 logger = get_logger(__name__)
 
@@ -16,7 +17,7 @@ from ..tool.mixin import ToolRegistry
 
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union, List, Dict, Any, Iterable, Callable
+from typing import Optional, Union, List, Dict, Any, Iterable, Callable, Type
 
 
 class BaseKLEngine(ToolRegistry, ABC):
@@ -174,12 +175,14 @@ class BaseKLEngine(ToolRegistry, ABC):
         if self.condition(kl):
             self._insert(kl, **kwargs)
 
-    def _batch_upsert(self, kls: Iterable[BaseUKF], **kwargs):
+    def _batch_upsert(self, kls: Iterable[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         for kl in kls:
             self._upsert(kl, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_upsert(self, kls: Iterable[BaseUKF], **kwargs):
+    def batch_upsert(self, kls: Iterable[BaseUKF], progress: Type[Progress] = None, **kwargs):
         """\
         Upsert multiple KLs.
         The default batch upsert is not optimized nor parallelized.
@@ -187,19 +190,28 @@ class BaseKLEngine(ToolRegistry, ABC):
 
         Args:
             kls (Iterable[BaseUKF]): The KLs to upsert.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             kwargs: Additional keyword arguments.
         """
-        self._batch_upsert([kl for kl in kls if self.condition(kl)], **kwargs)
+        filtered = [kl for kl in kls if self.condition(kl)]
+        total = len(filtered)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Upserting KLEngine '{self.name}'") as pbar:
+            self._batch_upsert(filtered, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
-    def _batch_insert(self, kls: Iterable[BaseUKF], **kwargs):
+    def _batch_insert(self, kls: Iterable[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if hasattr(self, "_batch_upsert"):
-            self._batch_upsert([kl for kl in kls if (kl.id not in self)], **kwargs)
+            self._batch_upsert([kl for kl in kls if (kl.id not in self)], progress=progress, **kwargs)
             return
         for kl in kls:
             self._insert(kl, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_insert(self, kls: Iterable[BaseUKF], **kwargs):
+    def batch_insert(self, kls: Iterable[BaseUKF], progress: Type[Progress] = None, **kwargs):
         """\
         Insert multiple KLs.
         The default batch insert first checks for existing keys and then batch upserts.
@@ -209,9 +221,16 @@ class BaseKLEngine(ToolRegistry, ABC):
 
         Args:
             kls (Iterable[BaseUKF]): The KLs to insert.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             kwargs: Additional keyword arguments.
         """
-        self._batch_insert([kl for kl in kls if self.condition(kl)], **kwargs)
+        filtered = [kl for kl in kls if self.condition(kl)]
+        total = len(filtered)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Inserting into KLEngine '{self.name}'") as pbar:
+            self._batch_insert(filtered, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
     @abstractmethod
     def _remove(self, key: int, **kwargs):
@@ -249,12 +268,14 @@ class BaseKLEngine(ToolRegistry, ABC):
             key = int(key)
         self._remove(key, **kwargs)
 
-    def _batch_remove(self, keys: Iterable[Union[int, str, BaseUKF]], **kwargs):
+    def _batch_remove(self, keys: Iterable[Union[int, str, BaseUKF]], progress: Progress = None, **kwargs):
         keys = unique(keys)  # Keeping only unique keys
         for key in keys:
             self._remove(key, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_remove(self, keys: Iterable[Union[int, str, BaseUKF]], conditioned: bool = True, **kwargs):
+    def batch_remove(self, keys: Iterable[Union[int, str, BaseUKF]], conditioned: bool = True, progress: Type[Progress] = None, **kwargs):
         """\
         Removes multiple KLs from the engine.
 
@@ -262,6 +283,7 @@ class BaseKLEngine(ToolRegistry, ABC):
             keys (Iterable[Union[int, str, BaseUKF]]): The keys or BaseUKF instances to remove.
             conditioned (bool): Remove only if the KLs satisfy the engine's condition. Default is True.
                 Notice that conditioned removal only applies when passing BaseUKF instances in keys.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
         parsed_keys = []
@@ -273,7 +295,12 @@ class BaseKLEngine(ToolRegistry, ABC):
             if isinstance(key, str):
                 key = int(key)
             parsed_keys.append(key)
-        self._batch_remove(parsed_keys, **kwargs)
+        total = len(parsed_keys)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Removing from KLEngine '{self.name}'") as pbar:
+            self._batch_remove(parsed_keys, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
     @abstractmethod
     def _clear(self):
@@ -297,7 +324,7 @@ class BaseKLEngine(ToolRegistry, ABC):
         """
         pass
 
-    def sync(self, batch_size: Optional[int] = None, **kwargs):
+    def sync(self, batch_size: Optional[int] = None, progress: Type[Progress] = None, **kwargs):
         """\
         Synchronize KLEngine with its attached KLStore, if applicable.
         Notice that a whole synchronization can often lead to large data upload/download.
@@ -309,12 +336,19 @@ class BaseKLEngine(ToolRegistry, ABC):
             batch_size (Optional[int]): The batch size for synchronization.
                 If None, use the default batch size from configuration (512).
                 If <= 0, yields all KLs in a single batch.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
         self.clear()  # Remove all existing KLs for synchronization
-        batch_size = batch_size or HEAVEN_CM.get("klengine.batch_size", 512)
-        for kl_batch in self.storage.batch_iter(batch_size=batch_size):
-            self.batch_upsert(kl_batch, **kwargs)
+        batch_size = batch_size or HEAVEN_CM.get("klengine.sync_batch_size", 512)
+        num_kls = len(self.storage)
+        total = num_kls
+        batch_iter = self.storage.batch_iter(batch_size=batch_size)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Syncing KLEngine '{self.name}'") as pbar:
+            for kl_batch in batch_iter:
+                self.batch_upsert(kl_batch, progress=None, **kwargs)
+                pbar.update(len(kl_batch))
         self.flush()
 
     def list_search(self) -> List[Optional[str]]:
@@ -336,6 +370,8 @@ class BaseKLEngine(ToolRegistry, ABC):
         """\
         Perform a search operation on the engine, return the KLs with keys limited to include.
         Conventionally, it ir recommended use `id` to return `BaseUKF.id`, and `kl` to return `BaseUKF` itself.
+
+        Notice that when `include=None`, the default keys must at least include `id`.
 
         Args:
             include (Optional[Iterable[str]]): The keys to include in the search results.
@@ -375,7 +411,7 @@ class BaseKLEngine(ToolRegistry, ABC):
 
         Args:
             include (Optional[Iterable[str]]): The keys to include in the search results.
-                Defaults to None, which resolves to ['id', 'kl'].
+                Defaults to None, which includes at least 'id' and 'kl'.
             mode (Optional[str]): The search method mode to use. None uses the default _search method.
             *args: The positional arguments to pass to the search.
             **kwargs: The keyword arguments to pass to the search.
@@ -393,8 +429,9 @@ class BaseKLEngine(ToolRegistry, ABC):
                 raise ValueError(f"Search mode '{mode}' not found. Available modes: {available_modes}")
             search_method = getattr(self, method_name)
 
-        include_list = unique(list(include)) if include is not None else ["id", "kl"]
-        requires_kl, include_ext = bool("kl" in include_list), unique([inc for inc in (["id"] + include_list)])
+        include_list = None if include is None else unique(list(include))
+        requires_kl = (include_list is None) or bool("kl" in include_list)
+        include_ext = None if include_list is None else unique(["id"] + include_list)
         results = search_method(*args, include=include_ext, **kwargs)
         if requires_kl:
             # Collect generator results into a list to avoid generator exhaustion
@@ -406,5 +443,19 @@ class BaseKLEngine(ToolRegistry, ABC):
             results = [r for r in temp_results if r.get("kl", None) is not None]
         # TODO: For some weird reason this results in a duplicate parameter error
         # results = self._post_search(results, include=include_list, *args, **kwargs)
-        results = [{k: r.get(k, None) for k in include_list} for r in results]
+        if include_list is not None:
+            results = [{k: r.get(k, None) for k in include_list} for r in results]
+        else:
+            results = [{k: r.get(k, None) for k in unique(["id", "kl"] + list(r.keys()))} for r in results]
+        for r in results:
+            if r.get("kl") and isinstance(r["kl"], BaseUKF):
+                r["kl"].metadata |= {
+                    "search": {
+                        "engine": self.name,
+                        "mode": mode,
+                        "args": args,
+                        "kwargs": kwargs,
+                        "returns": {k: v for k, v in r.items() if k not in ["id", "kl"]},
+                    }
+                }
         return results

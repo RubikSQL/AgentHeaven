@@ -63,6 +63,9 @@ def dmerge(iterable: Iterable[Dict[str, Any]], start: Optional[Dict[str, Any]] =
     for d in iterable:
         if not d:
             continue
+        if "_OVERWRITE_" in d and d["_OVERWRITE_"]:
+            start = deepcopy({k: v for k, v in d.items() if k != "_OVERWRITE_"})
+            continue
         for k, v in d.items():
             if (k in start) and isinstance(v, dict):
                 start[k] = dmerge([v], start=start[k])
