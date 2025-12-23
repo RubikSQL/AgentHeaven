@@ -1,16 +1,110 @@
 # Update Log
 
+## v0.9.2.dev2 (2025-12-22)
+
+- **_Feature_: A preliminary version for `AgentSpec` is added (temporarily) for fast prototyping of agents with tools, to be standardized in the following releases**
+
+- **_Feature_: `LLM` now supports `structured` for structured outputs (requires backend to support streaming for now) and `delta_messages`. Meanwhile, `messages` is now compatible with streaming as well**
+
+- **_Feature_: `LLM` inference with tool use now supports kwargs `repair_tool_calls=True` (default behavior), which automatically fixes malformed tool call arguments based on the provided `ToolSpec`s' arguments**
+
+- **_Feature_: `auto*` now supports ExperienceUKFT, KLStore, KLEngine, and KLBase as inputs, with new `search_args`, `ExampleType`, and `ExampleSource` interfaces**
+
+- **_Feature_: `ahvn config` CLI now supports `--cwd/-c` to specify which working directory to use for local config operations**
+
+- **_Feature_: `ahvn config show` CLI now supports adding optional positional argument to specify a sub-key to show only that part of the config**
+
+- **_Feature_: `BaseUKF` now supports `set`, `unset`, `setdef` besides `get`**
+
+- **_Feature_: `BaseUKF.clone` now supports `upd_<field>` for updating iterable fields instead of overwriting**
+
+- _Enhancement_: `Database` now supports `pool` args for robsut connection management
+
+- _Feature_: `DAACKLEngine` now supports custom file (for storing metadata and synonyms) encoding via `encoding` parameter
+
+- _Feature_: `HEAVEN_KB.get_prompt` now supports specifying additional search facets via `**kwargs` to disambiguate prompts with the same name
+
+- _Feature_: `delta_messages` and `gather_stream` utilities added to facilitate streaming LLM queries
+
+- _Feature_: `ahvn pj <path>` CLI command added to view the `hpj` path
+
+- _Feature_: `ORMUKFAdaptor` now supports `main_table_name()`, `dims_table_name(dim)`, and `table_names()` methods
+
+- _Feature_: config now adds `llm.litellm_debug` option to control LiteLLM debug mode separately (only effective when `core.debug` is also `True`)
+
+- _Deprecate_: `raise_mismatch` with `mode='ignore'` now returns the original value directly, while ``mode='match'`` returns the suggestion
+
+- _Deprecate_: `LLMChunk` is no longer exposed (renamed to `_LLMChunk`) as it is an internal state for implementing `LLM.stream`
+
+- _Deprecate_: renamed `Cache.remove(func, **kwargs)` -> `Cache.unset(func, **kwargs)` to correspond to `Cache.set`, with the new `Cache.remove(entry)` corresponding to `Cache.add`
+
+- _Deprecate_: `auto*` prompt composers' defaults now come before user-provided descriptions/instructions instead of after
+
+- _Deprecate_: changed `dset/dunset` behavior when `key_path=None`
+
+- _Fix_: default encoding now correctly reads from `core.encoding` in `HEAVEN_CM` instead of `encoding`
+
+- _Fix_: fixed database adaptor index creation when some fields are aliased, expecting tremendous speedup when using `FacetKLEngine` on large datasets
+
+- _Fix_: milvus vdb `alias` connection support
+
+- _Fix_: improved system prompts translation
+
+- _Fix_: system prompts now correctly handle `input_schema` and `output_schema`
+
+- _Fix_: fixed `copy_dir` errors when `mode='skip'`
+
+- _Fix_: `parse_md` now correctly handles imcomplete streaming and nested markdown structures
+
+<br/>
+
+## v0.9.2.dev1 (2025-12-09)
+
+- **_Feature_: new `ScanKLEngine`, which brute-force scans all entries in the KLStore for search, useful for small datasets and testing**
+
+- **_Feature_: `HEAVEN_KB` which stores built-in ahvn ukfs, as a first attempt towards AgentHeaven's self-containment**
+
+- **_Feature_: `dmerge` (used in ConfigManager) now supports overwriting nested dictionaries with the special key `_OVERWRITE_`**
+
+- **_Feature_: Progress bar utils is added to AgentHeaven utils for a unified callback progress reporting system**
+
+- **_Feature_: `system/prompt.jinja` now supports `toolspecs` to render tool specifications in prompts with instruction on text-based function calling**
+
+- **_Feature_: `autocode/autofunc/autotask` prompts are converted to `PromptUKFT`, which now supports `format` and `bind` and have altered composers**
+
+- **_Feature_: `BaseUKF` now supports `get` to retrieve nested values from `content_resources` using dot-separated key paths**
+
+- **_Fix_: LLM tool calling now properly parses `index` (missing for backends like `vllm`) for merging tool call deltas**
+
+- _Feature_: `ToolSpec` now supports `to_function` to convert a `ToolSpec` back to a callable function with proper signature
+
+- _Feature_: `funcwrap` utility added to wrap a function with the signature and metadata of another function
+
+- _Feature_: `KLBase` now supports `default_engine` which is used when no engine is specified in `search`
+
+- _Deprecate_: `KLBase` now interprets CRUD to `storages` and `engines` separately; if both are None, all storages and engines are used; if one is None, it is set to empty list if the other is non-empty, otherwise all.
+
+- _Deprecate_: `klengine.batch_size` -> `klengine.sync_batch_size` for sync operations to clarify usage
+
+- _Fix_: fixed `auto*` creating a different function signature than expected when `bind` is used, causing `Cache.memoize` to fail
+
+- _Fix_: `system/prompt.jinja` now guarantees two blank lines between sections, even when some sections are omitted
+
+- _Fix_: updated default LLM presets
+
+- _Fix_: `ahvn chat` and `ahvn session` now default to appropriate presets (`chat`) if none specified
+
+<br/>
+
 ## v0.9.2.dev0 (2025-12-02)
 
-<<<<<<< HEAD
-- **_Feature_: `utils.exts.auto*` functions now uses dynamic examples list, enabling cache-based imitation.**
-=======
-- **_Feature_: `utils.exts.auto*` functions now use dynamic examples list, enabling cache-based imitation.**
->>>>>>> bed508c (0.9.2.dev0 [release])
+- **_Feature_: `utils.exts.auto*` functions now use a dynamic examples list, enabling cache-based imitation**
 
 - **_Feature_: `KLEngine` now stores search args and returns in `r['kl'].metadata['search']` for each search result**
 
 - _Feature_: `config copy` now supports copying all configs with user confirmation by passing no keyword arguments
+
+- _Deprecate_: `ToolSpec.jsonschema` disabled strict mode to be compatible with optional parameters
 
 - _Fix_: `BaseKLEngine.search` now respects the `_search` defaults when `include=None`
 

@@ -10,11 +10,12 @@ from ..utils.basic.func_utils import (
     synthesize_docstring,
     synthesize_def,
     synthesize_signature,
+    funcwrap,
 )
 from ..utils.basic.jinja_utils import load_jinja_env
 from ..utils.basic.config_utils import dsetdef, dget
 
-from typing import Union, Optional, Callable, Iterable, Dict, Any, TYPE_CHECKING
+from typing import Union, Optional, Callable, Iterable, Dict, List, Any, TYPE_CHECKING
 
 from copy import deepcopy
 import asyncio
@@ -80,6 +81,10 @@ class ToolSpec(object):
         self._docstring: str = None
         self._env: Any = None
         self._template: Any = None
+
+    @property
+    def name(self):
+        return self.tool.name
 
     @property
     def binded(self):
@@ -463,7 +468,7 @@ class ToolSpec(object):
         """
         return cls.from_function(func=code2func(code=code, func_name=func_name, env=env), examples=examples, *args, **kwargs)
 
-    def bind(self, param: str, state_key: Optional[str] = None, default: Optional[Any] = None):
+    def bind(self, param: str, state_key: Optional[str] = None, default: Optional[Any] = None) -> "ToolSpec":
         """\
         Bind a parameter to a state key (and a value if the key is not present).
         The benefit of using a `state` instead of a direct value is that the state can be
@@ -477,13 +482,14 @@ class ToolSpec(object):
             default: The default value if the state key is not present. Defaults to None.
 
         Returns:
-            None
+            ToolSpec: The ToolSpec instance (for chaining).
         """
         dsetdef(self.state, state_key or param, default)
         self.binds[param] = state_key or param
         self._clear_cache()  # Invalidate the cached binded tool
+        return self
 
-    def unbind(self, param: str):
+    def unbind(self, param: str) -> "ToolSpec":
         """\
         Unbind a parameter from its state key.
 
@@ -491,12 +497,13 @@ class ToolSpec(object):
             param (str): The parameter name to unbind.
 
         Returns:
-            None
+            ToolSpec: The ToolSpec instance (for chaining).
         """
         self.binds.pop(param, None)
         self._clear_cache()  # Invalidate the cached binded tool
+        return self
 
-    def clone(self):
+    def clone(self) -> "ToolSpec":
         new_tool = ToolSpec()
         new_tool.tool = self.tool
         # Copy call interfaces correctly
@@ -568,6 +575,19 @@ class ToolSpec(object):
             code="pass",
         )
         return self._code
+
+    def to_function(self):
+        """\
+        Return a function that behaves like `ToolSpec.__call__` but has the same signature as the string produced by `ToolSpec.code`.
+
+        Returns:
+            Callable: The generated function.
+        """
+        try:
+            func = code2func(code=self.code, func_name=self.binded.name)
+            return funcwrap(exec_func=self.__call__, sig_func=func)
+        except Exception as e:
+            raise RuntimeError(f"Failed to convert ToolSpec to function.\nCode:\n{self.code}\nError: {e}") from e
 
     def signature(self, **kwargs) -> Optional[Iterable[ExperienceType]]:
         """\

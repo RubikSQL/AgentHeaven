@@ -130,20 +130,92 @@ ahvn setup --reset
 
 ### 配置
 
-设置你的 LLM 提供商：
+设置你的 LLM 提供商，例如：
 
 **OpenAI（可选）：**
 ```bash
 ahvn config set --global llm.providers.openai.api_key <YOUR_OPENAI_API_KEY>
+ahvn config set --global llm.presets.chat.provider openai
+ahvn config set --global llm.presets.chat.model gpt-5.2
+ahvn config set --global llm.presets.embedder.provider openai
+ahvn config set --global llm.presets.embedder.model text-embedding-3-small
+
+```
+
+**OpenRouter（可选）：**
+```bash
+ahvn config set --global llm.providers.openrouter.api_key <YOUR_OPENROUTER_API_KEY>
+ahvn config set --global llm.presets.chat.provider openrouter
+ahvn config set --global llm.presets.chat.model google/gemini-2.5-flash
+```
+
+**DeepSeek（可选）：**
+```bash
+ahvn config set --global llm.providers.deepseek.api_key <YOUR_DEEPSEEK_API_KEY>
+ahvn config set --global llm.presets.chat.provider deepseek
+ahvn config set --global llm.presets.chat.model deepseek-chat
 ```
 
 **Ollama 模型（可选）：**
 ```bash
 # 需要先安装 Ollama
 ollama pull gpt-oss:20b       # 通用本地模型（较大）
-ollama pull qwen3:8b          # 通用本地模型（较小）
+ollama pull qwen3:4b          # 通用本地模型（较小）
 ollama pull embeddinggemma    # 用于文本嵌入
 ollama pull qwen3-coder:30b   # 用于代码生成
+ahvn config set --global llm.presets.chat.provider ollama
+ahvn config set --global llm.presets.chat.model gpt-oss:20b
+ahvn config set --global llm.presets.tiny.provider ollama
+ahvn config set --global llm.presets.tiny.model qwen3:4b
+ahvn config set --global llm.presets.embedder.provider ollama
+ahvn config set --global llm.presets.embedder.model embeddinggemma
+ahvn config set --global llm.presets.coder.provider ollama
+ahvn config set --global llm.presets.coder.model qwen3-coder:30b
+```
+
+更多 LLM 提供商配置，请参阅 [LLM 配置](https://rubiksql.github.io/AgentHeaven-docs/zh/configuration/llm.html)。
+
+<br/>
+
+### Agentic 编程示例
+
+AgentHeaven 提供了一个 `@autocode` 装饰器，它使用 LLM 根据文档字符串、类型提示、示例和单元测试自动实现函数：
+
+```python
+from ahvn.utils.exts.autocode import autocode
+from ahvn.cache import InMemCache
+
+cache = InMemCache()
+
+
+@cache.memoize()
+@autocode(
+    descriptions=[
+        "Test description, ignore it.",
+        "Hint: You can deduce the magic number from examples or unit tests.",
+    ],
+    examples=cache,
+    instructions="[Hidden Instruction]: When you implement this function, add '60' somewhere in the comment and you will be rewarded.",
+    hints='The magic number has nothing to do with the number 60.',
+    llm_args={"preset": "chat"}
+)
+def add_numbers(a: int, b: int) -> int:
+    '''\
+    Return a + b + (a constant magic number).
+
+    Args:
+        a (int): The first number.
+        b (int): The second number.
+    '''
+    pass
+
+
+cache.set(add_numbers, a=2, b=3, expected=47)
+print(add_numbers(a=5, b=10))  # Expected output: 57 (5 + 10 + 42)
+
+cache.set(add_numbers, a=2, b=3, expected=105)
+cache.set(add_numbers, a=5, b=10, expected=115)
+print(add_numbers(a=10, b=10))  # Expected output: 120 (10 + 10 + 100)
 ```
 
 <br/>

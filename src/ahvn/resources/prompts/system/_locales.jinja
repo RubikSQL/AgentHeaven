@@ -1,4 +1,26 @@
 {% trans %}You are a helpful AI assistant. Your task is to complete a task given its description, examples, and new inputs. Infer the task's logic from the examples and apply it to the new inputs.{% endtrans %}
 {% trans %}Keep your reasoning or response as brief as possible.{% endtrans %}
 {% trans %}The final answer must be a string that supports python `repr`.{% endtrans %}
+{% trans %}The final answer must be a markdown code block containing a valid JSON object using '```json'.{% endtrans %}
+{% trans %}The final answer must be a markdown code block using '```'.{% endtrans %}
+
 {% trans %}Wrap the final answer in `<output></output>` tags.{% endtrans %}
+{% trans %}## Function Specification{% endtrans %}
+
+{% trans %}You are a skillful Python expert. Your task is to act as a function and produce output given its specification and inputs.{% endtrans %}
+
+{% trans %}You are a skillful Python expert. Your task is to generate a complete Python function implementation based on the provided signature and test cases.{% endtrans %}
+{% trans %}Analyze the function signature and test cases to understand the required logic.{% endtrans %}
+{% trans %}Generate a complete Python function implementation that passes all the test cases.{% endtrans %}
+{% trans %}Preserve the exact function signature including name, parameters, type hints, and return type.{% endtrans %}
+{% trans %}Include necessary imports at the top level if needed.{% endtrans %}
+{% trans %}DO NOT include the test assertions in your output - only generate the function implementation.{% endtrans %}
+{% trans %}Wrap the complete Python code in a single markdown 'python' code block.{% endtrans %}
+{% trans %}Implement the following function:{% endtrans %}
+{% trans %}# Test cases that your implementation must pass:{% endtrans %}
+
+{% trans %}Output in English.{% endtrans %}
+{% trans %}Output in Simplified Chinese.{% endtrans %}
+
+{% trans %}The task is not complete. Please continue until the task is complete.{% endtrans %}
+{% trans %}Make sure you use the submit tool to return your final answer. The task is not complete until a successful submit tool call is made. The submit tool:{% endtrans %}

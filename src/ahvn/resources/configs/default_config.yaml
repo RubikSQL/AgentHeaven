@@ -31,7 +31,7 @@ klstore:
     batch_size: 512
 
 klengine:
-    batch_size: 512
+    sync_batch_size: 512
 
 user:
     user_id: admin
@@ -47,6 +47,7 @@ prompts:
         - "~/.ahvn/prompts/"
 
 llm:
+    litellm_debug: false
     # LiteLLM compatible format:
     #   <provider>/<model_identifier>
     default_args:
@@ -54,24 +55,26 @@ llm:
         timeout: 120
         http_proxy: null
         https_proxy: null
+        repair_tool_calls: true
+        enforce_non_stream: false  # TODO: support inference backends that are not stream-compatible for tooluse
     
     default_preset: sys
     presets:
         sys:
-            model: gemini-flash
-        tiny:
-            provider: ollama
-            model: qwen3-8b
+            model: dsv3
         local:
             provider: ollama
-            model: gpt-oss
+            model: qwen3-30b
+        tiny:
+            provider: ollama
+            model: qwen3-4b
         chat-expert:
-            model: gpt-5
+            model: gpt-5.2
         chat:
             model: dsv3
         chat-local:
             provider: ollama
-            model: gpt-oss
+            model: qwen3-30b
         reason-expert:
             model: gemini-pro
         reason:
@@ -82,7 +85,7 @@ llm:
         coder-expert:
             model: opus
         coder:
-            model: sonnet
+            model: dsv3
         coder-local:
             provider: ollama
             model: qwen3-coder:30b
@@ -94,146 +97,90 @@ llm:
         embedder:
             provider: ollama
             model: embeddinggemma
+        embedder-tiny:
+            provider: ollama
+            model: all-minilm:33m
 
-    default_model: gemini-flash
+    default_model: dsv3
     models:
-        GPT-5:
+        GPT-5.2:
             aliases:
-                - gpt5
-                - GPT5
-                - gpt-5
+                - gpt5.2
+                - GPT5.2
+                - gpt-5.2
             default_provider: openrouter
             identifiers:
-                openrouter: openai/gpt-5
-                openai: gpt-5
-        GPT-5-mini:
+                openrouter: openai/gpt-5.2
+                openai: gpt-5.2
+        Gemini-3.0-Flash:
             aliases:
-                - gpt5-mini
-                - GPT5-mini
-                - gpt-5-mini
-                - 5-mini
-            default_provider: openrouter
-            identifiers:
-                openrouter: openai/gpt-5-mini
-                openai: gpt-5-mini
-        gemini-2.5-flash:
-            aliases:
+                - gemini-3.0-flash
                 - gemini-flash
             default_provider: openrouter
             identifiers:
-                openrouter: google/gemini-2.5-flash-preview-09-2025
-                gemini: gemini-2.5-flash-preview-09-2025
-        gemini-2.5-pro:
+                openrouter: google/gemini-3-flash-preview
+                gemini: gemini-3-flash-preview
+            default_args:
+                temperature: 1.0  # For Gemini 3 models, LiteLLM defaults temperature to 1.0 and strongly recommends keeping it at this default.
+        Gemini-3.0-Pro:
             aliases:
+                - gemini-3.0-pro
+                - gemini-3.0-pro-preview
+                - gemini-3-pro
+                - gemini-3-pro-preview
                 - gemini-pro
             default_provider: openrouter
             identifiers:
-                openrouter: google/gemini-2.5-pro
-                gemini: gemini-2.5-pro
-        Claude-Opus-4.1:
+                openrouter: google/gemini-3-pro-preview
+                gemini: gemini-3-pro-preview
+            default_args:
+                temperature: 1.0  # For Gemini 3 models, LiteLLM defaults temperature to 1.0 and strongly recommends keeping it at this default.
+        Claude-Opus-4.5:
             aliases:
                 - opus
-                - opus4.1
-                - Opus4.1
-                - opus-4.1
-                - Opus-4.1
+                - opus4.5
+                - Opus4.5
+                - opus-4.5
+                - Opus-4.5
+                - claude
                 - claude-opus
                 - Claude-Opus
-                - claude-opus-4-1-20250805
+                - claude-opus-4-5-20251101
             default_provider: openrouter
             identifiers:
-                openrouter: anthropic/claude-opus-4.1
-                anthropic: claude-opus-4-1-20250805
-        Claude-Sonnet-4.5:
-            aliases:
-                - sonnet
-                - sonnet4.5
-                - Sonnet4.5
-                - sonnet-4.5
-                - Sonnet-4.5
-                - claude-sonnet
-                - Claude-Sonnet
-                - claude-sonnet-4-5-20250929
-            default_provider: openrouter
-            identifiers:
-                openrouter: anthropic/claude-sonnet-4.5
-                anthropic: claude-sonnet-4-5-20250929
-        DeepSeek-R1:
-            aliases:
-                - r1
-                - dsr1
-                - dsr1:671b
-                - dsr1-671b
-                - DeepSeek-R1
-                - deepseek-r1
-                - deepseek-r1:671b
-            default_provider: openrouter
-            identifiers:
-                ollama: deepseek-r1:671b
-                openrouter: deepseek/deepseek-r1-0528
-        DeepSeek-V3:
-            aliases:
-                - v3
-                - dsv3
-                - dsv3:671b
-                - dsv3-671b
-                - DeepSeek-V3
-                - deepseek-v3
-                - deepseek-v3:671b
-            default_provider: openrouter
-            identifiers:
-                ollama: deepseek-v3:671b
-                openrouter: deepseek/deepseek-chat-v3-0324
-        DeepSeek-V3.1-Terminus:
-            aliases:
-                - Terminus
-                - terminus
-                - dsv3.1
-                - dsv3.1T
-                - dsv3.1-t
-                - dsv3.1-terminus
-                - dsv3.1-terminus:671b
-            default_provider: openrouter
-            identifiers:
-                ollama: deepseek-v3.1:671b
-                openrouter: deepseek/deepseek-v3.1-terminus
-        DeepSeek-V3.2-Exp:
+                openrouter: anthropic/claude-opus-4.5
+                anthropic: claude-opus-4-5-20251101
+        DeepSeek-V3.2:
             aliases:
                 - ds
+                - dsv3
                 - v3.2
                 - dsv3.2
                 - dsv3.2:671b
                 - dsv3.2-671b
-                - DeepSeek-V3.2-Exp
-                - deepseek-v3.2-exp
-                - deepseek-v3.2-exp:671b
+                - DeepSeek-v3.2
+                - deepseek-v3.2
+                - deepseek-v3.2:671b
                 - deepseek-chat
+            default_provider: openrouter
+            identifiers:
+                openrouter: deepseek/deepseek-v3.2
+                deepseek: deepseek-chat
+        DeepSeek-V3.2-Thinking:
+            aliases:
+                - dsr1
+                - v3.2-thinking
+                - dsv3.2-thinking
+                - dsv3.2-thinking:671b
+                - dsv3.2-thinking-671b
+                - DeepSeek-v3.2-Thinking
+                - deepseek-v3.2-thinking
+                - deepseek-v3.2-thinking:671b
                 - deepseek-reasoner
             default_provider: openrouter
             identifiers:
-                ollama: deepseek-v3.2:671b
-                openrouter: deepseek/deepseek-v3.2-exp
-                deepseek: deepseek-chat
-        Grok-4:
-            aliases:
-                - grok4
-                - Grok4
-                - grok-4
-                - grok-4-0709
-            default_provider: openrouter
-            identifiers:
-                openrouter: x-ai/grok-4
-                xai: grok-4-0709
-        Kimi-K2:
-            aliases:
-                - kimi
-                - kimi-k2
-                - kimi-k2-0905
-                - kimi-k2-0905-preview
-            default_provider: openrouter
-            identifiers:
-                openrouter: moonshotai/kimi-k2-0905
-                moonshot: kimi-k2-0905-preview
+                openrouter: deepseek/deepseek-v3.2
+                deepseek: deepseek-reasoner
         DeepSeek-R1-Distilled-Qwen-32B:
             aliases:
                 - dsqw
@@ -267,16 +214,6 @@ llm:
             identifiers:
                 ollama: qwen3:30b-a3b-instruct-2507-q4_K_M
                 openrouter: qwen/qwen3-30b-a3b-instruct-2507
-        Qwen3-8B:
-            aliases:
-                - qwen3-8b
-                - qwen3:8b
-                - Qwen3-8B
-            default_provider: ollama
-            identifiers:
-                ollama: qwen3:8b
-                lmstudio: qwen/qwen3-8b
-                openrouter: qwen/qwen3-8b
         Qwen3-4B-Instruct:
             aliases:
                 - qwen3-4b
@@ -287,19 +224,6 @@ llm:
             identifiers:
                 ollama: qwen3:4b
                 lmstudio: qwen/qwen3-4b-2507
-        GPT-OSS:
-            aliases:
-                - oss
-                - OSS
-                - gpt-oss
-                - gpt-oss:20b
-                - gpt-oss-20b
-                - GPT-OSS-20B 
-            default_provider: ollama
-            identifiers:
-                ollama: gpt-oss:20b
-                lmstudio: openai/gpt-oss-20b
-                openrouter: openai/gpt-oss-20b
         all-MiniLM-L12-v2:
             aliases:
                 - minilm
@@ -318,25 +242,6 @@ llm:
             identifiers:
                 ollama: embeddinggemma
             dimension: 768
-        bge-large:
-            aliases:
-                - bge
-                - bge-large:335m
-                - bge-large-en
-                - bge-large-en-v1.5
-            default_provider: ollama
-            identifiers:
-                ollama: bge-large:335m
-            dimension: 1024
-        bge-m3:
-            aliases:
-                - m3
-                - BGE-M3
-                - bge-m3:567m
-            default_provider: ollama
-            identifiers:
-                ollama: bge-m3:567m
-            dimension: 1024
         Qwen3-Embedding-8B:
             aliases:
                 - qwen3-embedding
@@ -367,12 +272,6 @@ llm:
             backend: "deepseek"
             api_key: "<DEEPSEEK_API_KEY>"
             api_base: "https://api.deepseek.com/beta"
-        xai:
-            backend: "xai"
-            api_key: "<XAI_API_KEY>"
-        moonshot:
-            backend: "moonshot"
-            api_key: "<MOONSHOT_API_KEY>"
         ollama:
             backend: "ollama"
         lmstudio:
@@ -416,21 +315,59 @@ db:
         sqlite:
             dialect: sqlite
             database: "./.ahvn/sqlite.db"
+            # Pool: StaticPool for file DBs, SingletonThreadPool for :memory:
+            pool:
+                pool_pre_ping: false
+                pool_recycle: -1
         duckdb:
             dialect: duckdb
             database: "./.ahvn/duckdb.db"
+            # Pool: NullPool (creates new connection each time, thread-safe)
+            pool:
+                pool_pre_ping: false
+                pool_recycle: -1
         pg:
             dialect: postgresql
             driver: psycopg2
             host: "localhost"
             port: 5432
             username: "${whoami}"
+            # Pool: QueuePool with pre-ping for stale connection detection
+            pool:
+                pool_pre_ping: true
+                pool_size: 5
+                max_overflow: 10
+                pool_timeout: 30
+                pool_recycle: 3600
         mysql:
             dialect: mysql
             driver: pymysql
             host: "localhost"
             port: 3306
             username: "root"
+            # Pool: Conservative settings to avoid "gone away" errors
+            pool:
+                pool_pre_ping: true
+                pool_size: 3
+                max_overflow: 2
+                pool_timeout: 30
+                pool_recycle: 1800
+        mssql:
+            dialect: mssql
+            driver: pyodbc
+            host: "localhost"
+            port: 1433
+            username: "sa"
+            query_params:
+                driver: "ODBC Driver 18 for SQL Server"
+                TrustServerCertificate: "yes"
+            # Pool: Similar to PostgreSQL
+            pool:
+                pool_pre_ping: true
+                pool_size: 5
+                max_overflow: 10
+                pool_timeout: 30
+                pool_recycle: 3600
 
 vdb:
     # Supports Lance, ChromaDB, Milvus, and PGVector
@@ -485,6 +422,9 @@ mdb:
         authSource: "admin"
         database: "default"
         collection: "default"
+
+agent:
+    max_stesp: 20
 
 imitator:
     scheduler:

@@ -6,6 +6,7 @@ __all__ = [
 from ..utils.basic.misc_utils import unique
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.log_utils import get_logger
+from ..utils.basic.progress_utils import Progress, NoProgress
 
 logger = get_logger(__name__)
 
@@ -14,7 +15,7 @@ from ..ukf.base import BaseUKF
 from ..tool.mixin import ToolRegistry
 
 from abc import ABC, abstractmethod
-from typing import Optional, Union, Iterable, Any, Generator, Callable
+from typing import Optional, Union, Iterable, Any, Generator, Callable, Type
 
 
 class BaseKLStore(ToolRegistry, ABC):
@@ -138,7 +139,7 @@ class BaseKLStore(ToolRegistry, ABC):
     def _batch_get(self, keys: Iterable[int], default: Any = ...) -> list:
         return [self._get(key, default=default) for key in keys]
 
-    def batch_get(self, keys: Iterable[Union[int, str, BaseUKF]], default: Any = ...) -> list:
+    def batch_get(self, keys: Iterable[Union[int, str, BaseUKF]], default: Any = ..., progress: Type[Progress] = None) -> list:
         """\
         Retrieves multiple KLs by their keys.
         The default batch get is not optimized nor parallelized.
@@ -158,7 +159,13 @@ class BaseKLStore(ToolRegistry, ABC):
             if isinstance(key, str):
                 key = int(key)
             parsed_keys.append(key)
-        return self._batch_get(parsed_keys, default=default)
+        progress_cls = progress or NoProgress
+        total = len(parsed_keys)
+        with progress_cls(total=total, desc=f"Fetching from KLStore '{self.name}'") as pbar:
+            result = self._batch_get(parsed_keys, default=default)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
+        return result
 
     @abstractmethod
     def _upsert(self, kl: BaseUKF, **kwargs):
@@ -190,12 +197,14 @@ class BaseKLStore(ToolRegistry, ABC):
         if self.condition(kl):
             self._insert(kl, **kwargs)
 
-    def _batch_upsert(self, kls: Iterable[BaseUKF], **kwargs):
+    def _batch_upsert(self, kls: Iterable[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         for kl in kls:
             self._upsert(kl, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_upsert(self, kls: Iterable[BaseUKF], **kwargs):
+    def batch_upsert(self, kls: Iterable[BaseUKF], progress: Type[Progress] = None, **kwargs):
         """\
         Upsert multiple KLs.
         The default batch upsert is not optimized nor parallelized.
@@ -203,19 +212,28 @@ class BaseKLStore(ToolRegistry, ABC):
 
         Args:
             kls (Iterable[BaseUKF]): The KLs to upsert.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
-        self._batch_upsert([kl for kl in kls if self.condition(kl)], **kwargs)
+        filtered = [kl for kl in kls if self.condition(kl)]
+        total = len(filtered)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Upserting KLStore '{self.name}'") as pbar:
+            self._batch_upsert(filtered, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
-    def _batch_insert(self, kls: Iterable[BaseUKF], **kwargs):
+    def _batch_insert(self, kls: Iterable[BaseUKF], progress: Progress = None, **kwargs):
         kls = unique(kls, key=lambda kl: kl.id)  # Keeping only the first occurrence of each ID in case of duplicates
         if hasattr(self, "_batch_upsert"):
-            self._batch_upsert([kl for kl in kls if (kl.id not in self)], **kwargs)
+            self._batch_upsert([kl for kl in kls if (kl.id not in self)], progress=progress, **kwargs)
             return
         for kl in kls:
             self._insert(kl, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_insert(self, kls: Iterable[BaseUKF], **kwargs):
+    def batch_insert(self, kls: Iterable[BaseUKF], progress: Type[Progress] = None, **kwargs):
         """\
         Insert multiple KLs.
         The default batch insert first checks for existing keys and then batch upserts.
@@ -225,9 +243,16 @@ class BaseKLStore(ToolRegistry, ABC):
 
         Args:
             kls (Iterable[BaseUKF]): The KLs to insert.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
-        self._batch_insert([kl for kl in kls if self.condition(kl)], **kwargs)
+        filtered = [kl for kl in kls if self.condition(kl)]
+        total = len(filtered)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Inserting into KLStore '{self.name}'") as pbar:
+            self._batch_insert(filtered, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
     @abstractmethod
     def _remove(self, key: int, **kwargs):
@@ -265,12 +290,14 @@ class BaseKLStore(ToolRegistry, ABC):
             key = int(key)
         self._remove(key, **kwargs)
 
-    def _batch_remove(self, keys: Iterable[int], **kwargs):
+    def _batch_remove(self, keys: Iterable[int], progress: Progress = None, **kwargs):
         keys = unique(keys)  # Keeping only unique keys
         for key in keys:
             self._remove(key, **kwargs)
+            if progress is not None:
+                progress.update(1)
 
-    def batch_remove(self, kls: Iterable[Union[int, str, BaseUKF]], conditioned: bool = True, **kwargs):
+    def batch_remove(self, kls: Iterable[Union[int, str, BaseUKF]], conditioned: bool = True, progress: Type[Progress] = None, **kwargs):
         """\
         Removes multiple KLs from the store.
         The default batch remove is not optimized nor parallelized.
@@ -280,6 +307,7 @@ class BaseKLStore(ToolRegistry, ABC):
             kls (Iterable[Union[int, str, BaseUKF]]): The keys or BaseUKF instances to remove.
             conditioned (bool): Remove only if the KLs satisfy the store's condition. Default is True.
                 Notice that conditioned removal only applies when passing BaseUKF instances in kls.
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
             **kwargs: Additional keyword arguments.
         """
         keys = []
@@ -291,7 +319,12 @@ class BaseKLStore(ToolRegistry, ABC):
             if isinstance(key, str):
                 key = int(key)
             keys.append(key)
-        self._batch_remove(keys, **kwargs)
+        total = len(keys)
+        progress_cls = progress or NoProgress
+        with progress_cls(total=total, desc=f"Removing from KLStore '{self.name}'") as pbar:
+            self._batch_remove(keys, progress=pbar, **kwargs)
+            if pbar.n < total:
+                pbar.update(total - pbar.n)
 
     def __len__(self) -> int:
         if HEAVEN_CM.get("core.debug"):

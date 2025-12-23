@@ -25,7 +25,7 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from fixtures import (
-    TestConfigLoader,
+    ConfigLoader,
     UniversalFactory,
     cleanup_instance,
     minimal_cache_filter,
@@ -87,9 +87,9 @@ def test_cache_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="session")
-def config_loader() -> TestConfigLoader:
-    """Return shared TestConfigLoader instance."""
-    return TestConfigLoader()
+def config_loader() -> ConfigLoader:
+    """Return shared ConfigLoader instance."""
+    return ConfigLoader()
 
 
 @pytest.fixture
@@ -135,7 +135,7 @@ def pytest_generate_tests(metafunc):
     This function is called by pytest for each test function, allowing us to
     parametrize tests based on the JSON configuration.
     """
-    config_loader = TestConfigLoader()
+    config_loader = ConfigLoader()
     test_name = f"test_{uuid.uuid4().hex[:8]}"
 
     # Cache fixtures

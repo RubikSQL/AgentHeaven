@@ -48,7 +48,7 @@ def raise_mismatch(
     supported: List[Any],
     got: Any,
     name: str = "value",
-    mode: Literal["ignore", "warn", "exit", "raise"] = "raise",
+    mode: Literal["ignore", "match", "warn", "exit", "raise"] = "raise",
     comment: Optional[str] = None,
     thres: float = 0.3,
 ) -> str:
@@ -59,8 +59,9 @@ def raise_mismatch(
         supported (List[Any]): A list of supported values.
         got (Any): The value to check against the supported list.
         name (str): The name of the value for error messages. Defaults to 'value'.
-        mode (Literal['warn','exit','raise']): The mode of handling the mismatch.
-            - 'ignore': Do nothing. Directly returns the suggestion if a close match is found.
+        mode (Literal['ignore','match','warn','exit','raise']): The mode of handling the mismatch.
+            - 'ignore': Do nothing.Directly returns the original value if no close match is found.
+            - 'match': Do nothing. Directly returns the suggestion if a close match is found.
             - 'warn': Log a warning message. Returns the suggestion if a close match is found.
             - 'exit': Log an error message and exit the program with status 1.
             - 'raise': Raise a ValueError with the error message.
@@ -78,10 +79,12 @@ def raise_mismatch(
     """
     if got in supported:
         return got
+    if mode == "ignore":
+        return got
 
     matches = value_match(supported, got, thres=thres)
     suggestion = matches[0][0] if matches else None
-    if mode == "ignore":
+    if mode == "match":
         return suggestion
     message = "\n".join(
         [

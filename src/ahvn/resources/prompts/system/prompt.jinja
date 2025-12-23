@@ -4,6 +4,8 @@ Optional:
     descriptions (Optional[List[str]]): A list of descriptions or guidelines for the model.
         If a list, each item is treated as a separate instruction with bullet points.
         If a string, it is treated as a single instruction with no bullet points.
+    toolspecs (Optional[List[ToolSpec]]): A list of tool specifications to include in the prompt.
+        If provided, extra instructions about tool usage will be automatically added.
     examples (Optional[List[CacheEntry]]): A list of example instances to display. Each instance should contain keys:
         - inputs (Dict[str, Any]): The input keys and values.
         - metadata.hints (Optional[List[str]]): A list of hints or notes.
@@ -19,62 +21,119 @@ Optional:
         - output (Optional[Any]): The output value.
         - expected (Optional[Any]): The expected output value.
         - metadata.notes (Optional[List[str]]): A list of additional notes.
+    input_schema (Optional[Dict[str, Any]]): The schema for the inputs (examples + instance).
+        For each input key, a mode can be specified to format the input value.
+        Currently only support the following mode:
+            - "base": Display the raw value.
+            - "repr": Display the value using its repr().
+            - "json": Display the value as a JSON string.
+            - "code": Display the value as a code block.
+        For more arguments, see "system/block.jinja".
+        Default mode is "base".
+    output_schema (Optional[Dict[str, Any]]): The schema for the output/expected (examples + instance).
+        Similar to input_schema, but contain only one dictionary for the output.
+        e.g., `{"mode": "code", "args": {"language": "sql"}}` or `{"mode": "repr"}`.
+        Default mode is "repr".
+    instance_todo (bool): If True, only display the inputs of the instance with output set to TODO and no expected output.
 Dependency:
     - "system/prompt_instance.jinja"
 -#}
-{% if system is defined and system is not none %}
-{{ system | tr }}
-
-
+{% set ns_prompt = namespace(first=True) -%}
+{%- set __out -%}
+{% macro emit(content) -%}
+{% set content_trimmed = content | trim %}
+{% if content_trimmed %}
+{{- '\n\n\n' if not ns_prompt.first else '' -}}
+{{- content_trimmed -}}
+{% set ns_prompt.first = False %}
 {% endif %}
-{% if descriptions is defined and descriptions is not none and descriptions | length > 0 %}
+{%- endmacro %}
+{%- if system is defined and system is not none -%}
+{% set section %}
+{{ system | tr }}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
+
+{%- if descriptions is defined and descriptions is not none and descriptions | length > 0 -%}
 {% set title %}{% trans %}Task Descriptions{% endtrans %}{% endset %}
 {% set ns = namespace(translated_descriptions=[]) %}
 {% for desc in descriptions %}
 {% set translated_lines = desc.split('\n') | map('tr') | join('\n') %}
 {% set ns.translated_descriptions = ns.translated_descriptions + [translated_lines] %}
 {% endfor %}
+{% set section %}
 {% with blocks=ns.translated_descriptions, title=title, depth=2, bullet="-" %}
 {% include "system/block_list.jinja" %}
 {% endwith %}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
 
+{%- if toolspecs is defined and toolspecs is not none and toolspecs | length > 0 -%}
+{% set ns = namespace(tools_content=[]) %}
+{% for tool in toolspecs %}
+{% set ns.tools_content = ns.tools_content + [tool.to_prompt()] %}
+{% endfor %}
+{% set section %}
+## {% trans %}Tools{% endtrans %}
 
-{% endif %}
-{% if examples is defined and examples is not none and examples | length > 0 %}
+{% trans %}You may use tools to help complete the task.{% endtrans %}
+{% trans %}To use a tool, output `<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should always be named parameters in the tool's definition.{% endtrans %}
+{% trans %}After using a tool, finish your response and wait for the tool's output to be provided by the user in `<tool_result>\n...\n</tool_result>` format.{% endtrans %}
+{% trans %}Use one tool at a time and iterate until you have the final answer (report in `<output></output>`).{% endtrans %}
+{% trans %}Here are some tools you can use to complete the task:{% endtrans %}
+
+{% with blocks=ns.tools_content, title=none, depth=2, bullet=none %}
+{% include "system/block_list.jinja" %}
+{% endwith %}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
+
+{%- if examples is defined and examples is not none and examples | length > 0 -%}
 {% set examples_content %}
-{% with examples=examples %}
+{% with examples=examples, input_schema=input_schema | default(none), output_schema=output_schema | default(none) %}
 {% include "system/prompt_examples.jinja" %}
 {% endwith %}
 {% endset %}
 {% set title %}{% trans %}Examples{% endtrans %}{% endset %}
+{% set section %}
 {% with blocks=[examples_content], title=title, depth=2, bullet=none %}
 {% include "system/block_list.jinja" %}
 {% endwith %}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
 
-{% endif %}
-{% if instructions is defined and instructions is not none and instructions | length > 0 %}
+{%- if instructions is defined and instructions is not none and instructions | length > 0 -%}
 {% set title %}{% trans %}Instructions{% endtrans %}{% endset %}
 {% set ns = namespace(translated_instructions=[]) %}
 {% for instr in instructions %}
 {% set translated_lines = instr.split('\n') | map('tr') | join('\n') %}
 {% set ns.translated_instructions = ns.translated_instructions + [translated_lines] %}
 {% endfor %}
+{% set section %}
 {% with blocks=ns.translated_instructions, title=title, depth=2, bullet="-" %}
 {% include "system/block_list.jinja" %}
 {% endwith %}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
 
-
-{% endif %}
-{% if instance is defined and instance is not none and instance.inputs | length > 0 %}
+{%- if instance is defined and instance is not none and instance.inputs | length > 0 -%}
 {% set instance_content %}
-{% with instance=instance %}
+{% with instance=instance, input_schema=input_schema | default(none), output_schema=output_schema | default(none), instance_todo=instance_todo | default(true) %}
 {% include "system/prompt_instance.jinja" %}
 {% endwith %}
 {% endset %}
 {% set title %}{% trans %}New Instance{% endtrans %}{% endset %}
+{% set section %}
 {% with blocks=[instance_content], title=title, depth=2, bullet=none %}
 {% include "system/block_list.jinja" %}
-{% endwith %}
-
-
-{% endif %}
+{%- endwith %}
+{% endset %}
+{{- emit(section) -}}
+{%- endif %}
+{%- endset -%}
+{{ __out | trim }}

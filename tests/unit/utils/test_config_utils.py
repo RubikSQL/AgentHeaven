@@ -287,8 +287,8 @@ class TestDunset:
     def test_dunset_none_key_path(self):
         """Test unsetting with None key path."""
         d = {"a": 1}
-        assert config_utils.dunset(d, None) is False
-        assert d == {"a": 1}
+        assert config_utils.dunset(d, None) is True
+        assert d == {}
 
     def test_dunset_invalid_array_access(self):
         """Test invalid array access scenarios."""

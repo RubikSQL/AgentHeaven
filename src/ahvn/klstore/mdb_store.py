@@ -4,6 +4,8 @@ __all__ = [
 
 from typing import Any, Generator, Optional, Iterable, Callable, List, Dict
 
+from ..utils.basic.progress_utils import Progress
+
 from ..utils.mdb import MongoDatabase
 from ..utils.basic.config_utils import HEAVEN_CM
 from ..utils.basic.misc_utils import unique
@@ -144,7 +146,7 @@ class MongoKLStore(BaseKLStore):
             upsert=True,
         )
 
-    def _batch_upsert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_upsert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         """\
         Upsert multiple UKFs efficiently using bulk operations.
 
@@ -161,8 +163,10 @@ class MongoKLStore(BaseKLStore):
         operations = [ReplaceOne(filter={"_id": doc["_id"]}, replacement=doc, upsert=True) for doc in self._batch_convert(kls)]
         if operations:
             self.mdb.conn.bulk_write(operations, ordered=False)
+            if progress is not None:
+                progress.update(len(kls))
 
-    def _batch_insert(self, kls: list[BaseUKF], **kwargs):
+    def _batch_insert(self, kls: list[BaseUKF], progress: Progress = None, **kwargs):
         """\
         Insert multiple UKFs efficiently, skipping existing ones.
 
@@ -179,6 +183,8 @@ class MongoKLStore(BaseKLStore):
         if not delta_kls:
             return
         self.mdb.conn.insert_many(self._batch_convert(delta_kls), ordered=False)
+        if progress is not None:
+            progress.update(len(delta_kls))
 
     def _remove(self, key: int, **kwargs) -> bool:
         """\
@@ -193,7 +199,7 @@ class MongoKLStore(BaseKLStore):
         """
         return self.mdb.conn.delete_many({"_id": self.adapter.parse_id(key)}).deleted_count > 0
 
-    def _batch_remove(self, keys: Iterable[int], **kwargs):
+    def _batch_remove(self, keys: Iterable[int], progress: Progress = None, **kwargs):
         """\
         Remove multiple UKFs efficiently.
 
@@ -205,7 +211,9 @@ class MongoKLStore(BaseKLStore):
         if not keys:
             return
         ukf_ids = [self.adapter.parse_id(key) for key in keys]
-        self.mdb.conn.delete_many({"_id": {"$in": ukf_ids}})
+        result = self.mdb.conn.delete_many({"_id": {"$in": ukf_ids}})
+        if progress is not None:
+            progress.update(result.deleted_count or len(ukf_ids))
 
     def __len__(self) -> int:
         """\

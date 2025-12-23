@@ -46,7 +46,7 @@ class UniversalFactory:
 
         Args:
             cache_type: Cache type (InMemCache, DiskCache, JsonCache, DatabaseCache, MongoCache)
-            backend: Backend type for DatabaseCache (sqlite, duckdb, postgresql, mysql)
+            backend: Backend type for DatabaseCache (sqlite, duckdb, postgresql, mysql, mssql, etc.)
             path: Path for file-based caches, database path, or MongoDB collection name
             label: Label for generating short names (optional)
 
@@ -108,7 +108,7 @@ class UniversalFactory:
         Create a database instance from JSON configuration.
 
         Args:
-            backend: Database backend (sqlite, duckdb, postgresql, mysql)
+            backend: Database backend (sqlite, duckdb, postgresql, mysql, mssql, etc.)
             path: Database path or name
             label: Label for generating short names (optional)
 
@@ -329,14 +329,18 @@ class UniversalFactory:
         Returns:
             KLEngine instance
         """
-        from ahvn.klengine import DAACKLEngine, FacetKLEngine, VectorKLEngine, MongoKLEngine
+        from ahvn.klengine import DAACKLEngine, FacetKLEngine, VectorKLEngine, MongoKLEngine, ScanKLEngine
 
         # Create storage from store_args with label for storage
         store_type, backend_args = store_args
         storage_label = f"{label}_storage" if label else None
         storage = UniversalFactory.create_klstore(store_type, backend_args, label=storage_label)
 
-        if engine_type == "DAACKLEngine":
+        if engine_type == "ScanKLEngine":
+            # ScanKLEngine just needs storage (always inplace)
+            return ScanKLEngine(storage=storage)
+
+        elif engine_type == "DAACKLEngine":
             # DAACKLEngine just needs storage
             return DAACKLEngine(storage=storage)
 

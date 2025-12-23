@@ -1,6 +1,6 @@
 import pytest
 
-from ahvn.utils.basic.parser_utils import parse_keys, parse_md
+from ahvn.utils.basic.parser_utils import parse_keys, parse_md, parse_fc
 
 
 class TestParseKeys:
@@ -266,3 +266,154 @@ class TestParserEdgeCases:
         result = parse_md(md_content)
         expected = {"python": "code1", "sql": "code2"}
         assert result == expected
+
+
+class TestParseFunctionCall:
+    """Test the parse_fc function."""
+
+    def test_parse_fc_basic(self):
+        call = "fibonacci(n=32)"
+        expected = {"name": "fibonacci", "arguments": {"n": 32}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_whitespace_and_types(self):
+        call = " foo ( bar = 'baz' , qux = 1.5 , ok=true , nada=None ) "
+        expected = {"name": "foo", "arguments": {"bar": "baz", "qux": 1.5, "ok": True, "nada": None}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_empty_args(self):
+        call = "ping()"
+        expected = {"name": "ping", "arguments": {}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_nested_literals(self):
+        call = "mix(a=[1, 2], b={'x': 3})"
+        expected = {"name": "mix", "arguments": {"a": [1, 2], "b": {"x": 3}}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_trailing_comma(self):
+        call = "noop(a=1,)"
+        expected = {"name": "noop", "arguments": {"a": 1}}
+        assert parse_fc(call) == expected
+
+    def test_parse_fc_invalid_missing_paren(self):
+        call = "broken(a=1"
+        with pytest.raises(ValueError):
+            parse_fc(call)
+
+    def test_parse_fc_invalid_positional(self):
+        call = "func(1, b=2)"
+        with pytest.raises(ValueError):
+            parse_fc(call)
+
+    class TestParseMdExtra:
+        """Additional tests merged from external `test_parse_md.py`."""
+
+        def test_basic_parsing_examples(self):
+            input1 = '<think>Hello!</think>\nSome textual output.\n```sql\nSELECT *\nFROM table;\n```\n<rating>\n```json\n{"rating": 5}\n```</rating>'
+            expected1 = {"think": "Hello!", "text": "Some textual output.", "sql": "SELECT *\nFROM table;", "rating": '```json\n{"rating": 5}\n```'}
+            result1 = parse_md(input1)
+            assert result1 == expected1
+
+            expected2 = {"think.text": "Hello!", "text": "Some textual output.", "sql": "SELECT *\nFROM table;", "rating.json": '{"rating": 5}'}
+            result2 = parse_md(input1, recurse=True)
+            assert result2 == expected2
+
+            expected3 = [
+                {"key": "think", "value": "Hello!"},
+                {"key": "text", "value": "Some textual output."},
+                {"key": "sql", "value": "SELECT *\nFROM table;"},
+                {"key": "rating", "value": '```json\n{"rating": 5}\n```'},
+            ]
+            result3 = parse_md(input1, mode="list")
+            assert result3 == expected3
+
+        def test_nested_code_blocks_various_fences(self):
+            input1 = "````markdown\nHere is some code:\n```python\nprint('hello')\n```\n````"
+            result1 = parse_md(input1)
+            assert "markdown" in result1
+            assert "```python" in result1["markdown"]
+
+            input2 = "`````text\n````python\ncode here\n````\n`````"
+            result2 = parse_md(input2)
+            assert "text" in result2
+            assert "````python" in result2["text"]
+
+            input3 = "Before\n````sql\nSELECT * FROM\n```inner```\ntable;\n````\nAfter"
+            result3 = parse_md(input3)
+            assert "text" in result3
+            assert "sql" in result3
+
+        def test_nested_tags_and_recursion(self):
+            input1 = "<div><div>inner</div></div>"
+            result1 = parse_md(input1)
+            assert "div" in result1
+
+            input2 = "<outer><inner>content</inner></outer>"
+            result2 = parse_md(input2, recurse=True)
+            assert "outer.inner.text" in result2
+            assert result2["outer.inner.text"] == "content"
+
+            input3 = "<a><b><c>deep</c></b></a>"
+            result3 = parse_md(input3, recurse=True)
+            assert "a.b.c.text" in result3
+
+            input4 = "<output>\n```python\nprint('hello')\n```\n</output>"
+            result4 = parse_md(input4, recurse=True)
+            assert "output.python" in result4
+
+        def test_streaming_and_incomplete_inputs(self):
+            input1 = "<think>Hello, I am thinking"
+            result1 = parse_md(input1)
+            assert isinstance(result1, dict)
+            assert "think" in result1
+
+            input2 = "```python\nprint('hello')"
+            result2 = parse_md(input2)
+            assert isinstance(result2, dict)
+            assert "python" in result2
+
+            input3 = "Some text <thi"
+            result3 = parse_md(input3)
+            assert isinstance(result3, dict)
+
+            input4 = "Some text ``"
+            result4 = parse_md(input4)
+            assert isinstance(result4, dict)
+
+            full_input = "<think>Hello!</think>\n```sql\nSELECT * FROM table;\n```"
+            for i in range(1, len(full_input) + 1):
+                partial = full_input[:i]
+                result = parse_md(partial)
+                assert isinstance(result, dict)
+
+        def test_additional_edge_cases(self):
+            assert parse_md("") == {}
+            assert parse_md("   \n\t  ") == {}
+            r = parse_md("Just some plain text here.")
+            assert isinstance(r, dict) and "text" in r
+            r2 = parse_md("<tag></tag>")
+            assert "tag" in r2 and r2["tag"] == ""
+            r3 = parse_md("```python\n```")
+            assert "python" in r3
+            r4 = parse_md("```\nsome code\n```")
+            assert "markdown" in r4
+            r5 = parse_md("<tag>Content with <angle> brackets & symbols!</tag>")
+            assert "tag" in r5
+            r6 = parse_md("<a>first</a>\n<a>second</a>")
+            assert r6["a"] == "second"
+            r7 = parse_md("text\n```python\ncode\n```\nmore text")
+            assert "python" in r7
+
+        def test_complex_real_world_scenarios(self):
+            input1 = """<think>\nI need to write a SQL query to find all users.\nLet me think about the table structure.\n</think>\n\nHere is the SQL query:\n\n```sql\nSELECT u.id, u.name, u.email\nFROM users u\nWHERE u.active = true\nORDER BY u.created_at DESC;\n```\n\n<explanation>\nThis query selects all active users sorted by creation date.\n</explanation>"""
+            result1 = parse_md(input1)
+            assert "think" in result1 and "sql" in result1 and "explanation" in result1
+
+            input2 = """````markdown\n# Example\n\nHere's how to use code blocks:\n\n```python\ndef hello():\n    print("world")\n```\n\nThat's it!\n````"""
+            result2 = parse_md(input2)
+            assert "markdown" in result2 and "```python" in result2["markdown"]
+
+            input3 = """First some text.\n\n```python\nx = 1\n```\n\nThen more text.\n\n```javascript\nconst y = 2;\n```\n\nFinal text."""
+            result3 = parse_md(input3)
+            assert "python" in result3 and "javascript" in result3

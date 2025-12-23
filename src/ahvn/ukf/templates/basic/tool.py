@@ -3,14 +3,12 @@ __all__ = [
     "docstring_composer",
 ]
 
-from ...types import UKFShortTextType
-from ...base import BaseUKF, ptags
+from ...base import BaseUKF
 from ...registry import register_ukft
 from ....utils.basic.func_utils import synthesize_docstring
 from ....tool.base import ToolSpec
 
-from typing import Optional, Any, Dict, Union, ClassVar
-from pydantic import Field, field_validator
+from typing import Optional, Any, Dict, ClassVar
 import asyncio
 
 
@@ -94,12 +92,12 @@ class ToolUKFT(BaseUKF):
     UKF Type: tool
 
     Recommended Components of `content_resources`:
-        tool_name (str): The name of the tool.
-        description (str): Detailed tool description.
-        input_schema (Dict): JSON Schema for input parameters (with binds applied).
-        output_schema (Dict): JSON Schema for output structure.
-        examples (List[Dict], optional): Example usage cases.
-        client_config (Dict, optional): Client connection configuration.
+        - tool_name (str): The name of the tool.
+        - description (str): Detailed tool description.
+        - input_schema (Dict): JSON Schema for input parameters (with binds applied).
+        - output_schema (Dict): JSON Schema for output structure.
+        - examples (List[Dict], optional): Example usage cases.
+        - client_config (Dict, optional): Client connection configuration.
             - type (str): Connection type ("http", "stdio", "inmemory")
             - url (str, optional): URL for HTTP connections
             - script_path (str, optional): Python file path for stdio
@@ -170,7 +168,7 @@ class ToolUKFT(BaseUKF):
         from fastmcp import Client
         from fastmcp.client.transports import PythonStdioTransport, StreamableHttpTransport
 
-        config = client_config or self.content_resources.get("client_config", {})
+        config = client_config or self.get("client_config", {})
         transport_type = config.get("type", "inmemory")
 
         if transport_type == "http":

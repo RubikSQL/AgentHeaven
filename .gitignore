@@ -4,6 +4,7 @@ Thumbs.db
 *.pyc
 *.pyd
 *.pyo
+tempCodeRunnerFile.py
 __pycache__/
 *.egg-info/
 .eggs/
@@ -70,6 +71,7 @@ CLAUDE.md
 
 # AgentHeaven
 .ahvn/
+src/ahvn/resources/ukfs/**/*.json
 
 # Temporary
 src/ahvn/resources/ukfs/*

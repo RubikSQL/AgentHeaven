@@ -55,6 +55,8 @@
         ["// MongoKLStore", "pytest_{name}_mdb"]
     ],
     "klengine": [
+        ["ScanKLEngine", ["CacheKLStore", ["InMemCache", null, null]], null, true],
+        ["ScanKLEngine", ["DatabaseKLStore", ["sqlite", ":memory:"]], null, true],
         ["DAACKLEngine", ["CacheKLStore", ["InMemCache", null, null]], null, false],
         ["DAACKLEngine", ["DatabaseKLStore", ["sqlite", "./.pytest_cache/{name}/db_ac.db"]], null, false],
         ["FacetKLEngine", ["CacheKLStore", ["InMemCache", null, null]], ["sqlite", "./.pytest_cache/{name}/dbs_imfcni.db"], false],

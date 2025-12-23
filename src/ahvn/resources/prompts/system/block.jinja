@@ -3,20 +3,25 @@ Required:
     content (str): A basic content.
 Optional:
     mode (Literal["base", "repr", "json", "code", "tag"]): The output formatting mode. Default to "base".
-    cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
-    round_digits (Optional[int]): For representation of floats, number of digits to round to. Default to 6.
-        - Only used in "repr" and "json" mode.
-    indent (Optional[int]): The indentation level for pretty-printing. Default to 4.
-        - Only used in "json" mode.
-    language (Optional[str]): The programming language for syntax highlighting. Default to ''.
-        - Only used in "code" mode.
-    start (Optional[int]): The starting line number. Default to -1 (no line numbers).
-        - Only used in "code" mode.
-    window (Optional[Tuple[int, int]]): A tuple specifying the (start, end)
-        line numbers to include. If None, includes all lines. Default to None.
-        - Only used in "code" mode.
-    filepath (Optional[str]): The path to the file if applicable.
-        - Only used in "code" mode.
+    args (Dict[str, Any]): Additional arguments for the specific mode.
+        cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+        round_digits (Optional[int]): For representation of floats, number of digits to round to. Default to 6.
+            - Only used in "repr" and "json" mode.
+        indent (Optional[int]): The indentation level for pretty-printing. Default to 4.
+            - Only used in "json" mode.
+        language (Optional[str]): The programming language for syntax highlighting. Default to ''.
+            - Only used in "code" mode.
+        start (Optional[int]): The starting line number. Default to -1 (no line numbers).
+            - Only used in "code" mode.
+        window (Optional[Tuple[int, int]]): A tuple specifying the (start, end)
+            line numbers to include. If None, includes all lines. Default to None.
+            - Only used in "code" mode.
+        filepath (Optional[str]): The path to the file if applicable.
+            - Only used in "code" mode.
+        idx (Optional[int]): The index of the block. Default to no index.
+            - Only used in "tag" mode.
+        tag (Optional[str]): The tag for the content.
+            - Only used in "tag" mode.
 Dependency:
     - "system/block_base.jinja"
     - "system/block_repr.jinja"
@@ -24,24 +29,25 @@ Dependency:
     - "system/block_code.jinja"
 -#}
 {% if mode is not defined or mode is none %}{% set mode = "base" %}{% endif %}
+{% if args is not defined or args is none %}{% set args = {} %}{% endif %}
 {% if mode == "base" %}
-    {% with content=content, cutoff=cutoff | default(none) %}
+    {% with content=content, cutoff=args.cutoff | default(none) %}
         {% include "system/block_base.jinja" %}
     {% endwith %}
 {% elif mode == "repr" %}
-    {% with content=content, cutoff=cutoff | default(none), round_digits=round_digits | default(none) %}
+    {% with content=content, cutoff=args.cutoff | default(none), round_digits=args.round_digits | default(none) %}
         {% include "system/block_repr.jinja" %}
     {% endwith %}
 {% elif mode == "json" %}
-    {% with content=content, cutoff=cutoff | default(none), round_digits=round_digits | default(none), indent=indent | default(none) %}
+    {% with content=content, cutoff=args.cutoff | default(none), round_digits=args.round_digits | default(none), indent=args.indent | default(none) %}
         {% include "system/block_json.jinja" %}
     {% endwith %}
 {% elif mode == "code" %}
-    {% with content=content, cutoff=cutoff | default(none), language=language | default(none), start=start | default(none), window=window | default(none), filepath=filepath | default(none) %}
+    {% with content=content, cutoff=args.cutoff | default(none), language=args.language | default(none), start=args.start | default(none), window=args.window | default(none), filepath=args.filepath | default(none) %}
         {% include "system/block_code.jinja" %}
     {% endwith %}
 {% elif mode == "tag" %}
-    {% with content=content, tag=tag | default(none), idx=idx | default(none), cutoff=cutoff | default(none) %}
+    {% with content=content, tag=args.tag | default(none), idx=args.idx | default(none), cutoff=args.cutoff | default(none) %}
         {% include "system/block_tag.jinja" %}
     {% endwith %}
 {% else %}

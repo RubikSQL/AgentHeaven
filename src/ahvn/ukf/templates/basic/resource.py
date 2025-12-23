@@ -4,8 +4,7 @@ __all__ = [
     "list_composer",
 ]
 
-from ...types import UKFShortTextType
-from ...base import BaseUKF, ptags
+from ...base import BaseUKF
 from ...registry import register_ukft
 from ....utils.basic.serialize_utils import serialize_path, deserialize_path
 from ....utils.basic.config_utils import hpj, HEAVEN_CM
@@ -16,11 +15,9 @@ from ....utils.basic.log_utils import get_logger
 
 logger = get_logger(__name__)
 
-from typing import Union, Dict, Any, Set, Optional, List, ClassVar
-from pydantic import Field, field_validator
+from typing import Union, Dict, Any, Optional, List, ClassVar
 import os
 import tempfile
-import shutil
 
 
 RESOURCE_UNZIP_TEMP_PATH = hpj(HEAVEN_CM.get("core.tmp_path", tempfile.gettempdir()), "resource_unzip")
@@ -95,9 +92,9 @@ def diagram_composer(kl, **kwargs):
         │   └── main.py  # Main entry point
         '''
     """
-    path = kwargs.get("path", kl.content_resources.get("path", ""))
-    data = kwargs.get("data", kl.content_resources.get("data", {}))
-    annotations = kwargs.get("annotations", kl.content_resources.get("annotations", {}))
+    path = kwargs.get("path", kl.get("path", ""))
+    data = kwargs.get("data", kl.get("data", {}))
+    annotations = kwargs.get("annotations", kl.get("annotations", {}))
 
     custom_name = kwargs.get("name")
     if custom_name is None:
@@ -159,8 +156,8 @@ def list_composer(kl, ext: Union[None, str, List[str]] = None, **kwargs):
         - src/main.py  # Main entry point
         '''
     """
-    data = kwargs.get("data", kl.content_resources.get("data", {}))
-    annotations = kwargs.get("annotations", kl.content_resources.get("annotations", {}))
+    data = kwargs.get("data", kl.get("data", {}))
+    annotations = kwargs.get("annotations", kl.get("annotations", {}))
 
     # Extract only files (not directories, which have None as value)
     all_files = sorted([path for path, content in data.items() if content is not None])
@@ -192,9 +189,9 @@ class ResourceUKFT(BaseUKF):
 
     UKF Type: resource
     Recommended Components of `content_resources`:
-        path (str): The original file/directory path.
-        data (Dict[str, Optional[str]]): Serialized file/directory structure from serialize_path.
-        annotations (Dict[str, str]): File-level annotations for context.
+        - path (str): The original file/directory path.
+        - data (Dict[str, Optional[str]]): Serialized file/directory structure from serialize_path.
+        - annotations (Dict[str, str]): File-level annotations for context.
 
     Recommended Composers:
         diagram:
@@ -336,7 +333,7 @@ class ResourceUKFT(BaseUKF):
                 └── main.py  # Main entry point
             '''
         """
-        annotations = self.content_resources.get("annotations", {}).copy()
+        annotations = self.get("annotations", {}).copy()
         annotations[file_path] = annotation
 
         content_resources = self.content_resources.copy()
@@ -359,11 +356,11 @@ class ResourceUKFT(BaseUKF):
             >>> resource.to_path("/destination/restored_data/")
             # Recreates the original directory structure at destination
         """
-        deserialize_path(self.content_resources["data"], path=path)
+        deserialize_path(self.get("data"), path=path)
 
     def _temp_context(self, path: Optional[str] = None, overwrite: bool = False, cleanup: bool = False) -> _ResourceTempContext:
         if not path:
-            path = hpj(self.content_resources.get("path"), abs=True)
+            path = hpj(self.get("path"), abs=True)
             if (path is not None) and (not exists_path(path)):  # If not specified, and the path in knowledge does not exist, use a temporary path
                 path = None
         return _ResourceTempContext(self, path=path, overwrite=overwrite, cleanup=cleanup)

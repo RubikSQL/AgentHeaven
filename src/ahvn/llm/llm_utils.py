@@ -8,6 +8,7 @@ from ..utils.basic.cmd_utils import cmd
 
 _core = HEAVEN_CM.get("core", dict())
 _debug = _core.get("debug", False)
+_litellm_debug = bool(HEAVEN_CM.get("llm.litellm_debug", False) and _debug)
 
 import os
 from typing import Dict, Any, Union, List
@@ -20,7 +21,7 @@ if _http_proxy:
     os.environ["HTTP_PROXY"] = _http_proxy
 if _https_proxy:
     os.environ["HTTPS_PROXY"] = _https_proxy
-if not _debug:
+if not _litellm_debug:
     os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
     os.environ["DISABLE_SCHEMA_UPDATE"] = "True"
     os.environ["LITELLM_MODE"] = "PRODUCTION"
@@ -40,7 +41,7 @@ def get_litellm():
         _litellm.drop_params = True
         _litellm.ssl_verify = False
         _litellm.disable_end_user_cost_tracking = True
-        if not _debug:
+        if not _litellm_debug:
             _litellm._logging._disable_debugging()
             _litellm.suppress_debug_info = True
             _litellm.set_verbose = False

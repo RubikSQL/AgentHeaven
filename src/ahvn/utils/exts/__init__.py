@@ -1,5 +1,7 @@
 import importlib
 
+from .examples_utils import *
+
 
 def __getattr__(name):
     if name == "autoi18n":

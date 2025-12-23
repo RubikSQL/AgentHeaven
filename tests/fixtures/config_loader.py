@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from ahvn.utils import fmt_short_hash
 
 
-class TestConfigLoader:
+class ConfigLoader:
     """Load and parse tests.json configuration file."""
 
     def __init__(self, config_path: Optional[Path] = None):

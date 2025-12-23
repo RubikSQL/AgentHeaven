@@ -52,7 +52,7 @@ def get_default_dependencies() -> dict:
         ),
         "postgresql": DependencyInfo(
             name="postgresql",
-            packages=["psycopg2"],
+            packages=["psycopg2-binary"],
             install="pip install psycopg2-binary",
             description="PostgreSQL database support",
             required_for=["database", "postgresql_connections"],
@@ -63,6 +63,13 @@ def get_default_dependencies() -> dict:
             install="pip install duckdb duckdb-engine",
             description="DuckDB database support",
             required_for=["database", "analytics"],
+        ),
+        "mssql": DependencyInfo(
+            name="mssql",
+            packages=["pyodbc"],
+            install="pip install pyodbc",
+            description="Microsoft SQL Server support",
+            required_for=["database", "mssql_connections"],
         ),
         "spacy": DependencyInfo(
             name="spacy",
@@ -168,13 +175,6 @@ def get_default_dependencies() -> dict:
             install="pip install cx_Oracle sqlalchemy",
             description="Oracle database support",
             required_for=["database", "oracle_connections"],
-        ),
-        "mssql": DependencyInfo(
-            name="mssql",
-            packages=["pymssql"],
-            install="pip install pymssql",
-            description="Microsoft SQL Server support",
-            required_for=["database", "mssql_connections"],
         ),
         "databricks": DependencyInfo(
             name="databricks",
