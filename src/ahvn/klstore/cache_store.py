@@ -77,7 +77,7 @@ class CacheKLStore(BaseKLStore):
             key (int): The KL id to remove.
             **kwargs: Additional keyword arguments.
         """
-        self.cache.remove(func="kl_store", kid=key)
+        self.cache.unset(func="kl_store", kid=key)
 
     def __len__(self) -> int:
         return len(self.cache)

@@ -18,7 +18,7 @@ Optional:
         Default mode is "base".
     output_schema (Optional[Dict[str, Any]]): The schema for the output.
         Similar to input_schema, but contain only one dictionary for the output.
-        e.g., `{"mode": "code"}` or `{"mode": "repr"}`.
+        e.g., `{"mode": "code", "args": {"language": "sql"}}` or `{"mode": "repr"}`.
         Default mode is "repr".
     tag (Optional[str]): The tag for the content.
     cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
@@ -26,7 +26,7 @@ Dependency:
     - "system/prompt_instance.jinja"
 -#}
 {% for example in examples %}
-{% with instance=example, input_schema=input_schema | default(none), output_schema=output_schema | default(none), tag=tag | default("example"), idx=loop.index, cutoff=cutoff | default(none) %}
+{% with instance=example, input_schema=input_schema | default(none), output_schema=output_schema | default(none), tag=tag | default("example"), idx=loop.index, cutoff=cutoff | default(none), instance_todo=false %}
 {% include "system/prompt_instance.jinja" %}
 
 {% endwith %}

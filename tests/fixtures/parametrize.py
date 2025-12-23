@@ -19,7 +19,7 @@ def generate_parametrize(
     Generate pytest parametrize arguments from config loader.
 
     Args:
-        config_loader: TestConfigLoader instance
+        config_loader: ConfigLoader instance
         config_type: Type of configuration (cache, db, vdb, klstore, klengine)
         test_name: Test name for path resolution
         filter_func: Optional function to filter configurations

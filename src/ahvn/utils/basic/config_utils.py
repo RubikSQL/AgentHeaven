@@ -133,7 +133,10 @@ def dset(d: Dict[str, Any], key_path: str, value: Optional[Any] = None) -> bool:
         {'a': {'b': {'c': 42}}}
     """
     if key_path is None:
-        return False
+        if not isinstance(value, dict):
+            return False
+        d.update(value)
+        return True
     keys = _split_key_path(key_path)
     for key in keys[:-1]:
         if key.endswith("]"):
@@ -182,7 +185,8 @@ def dunset(d: Dict[str, Any], key_path: str) -> bool:
         {'a': {'b': {}}}
     """
     if key_path is None:
-        return False
+        d.clear()
+        return True
     keys = _split_key_path(key_path)
     for key in keys[:-1]:
         if key.endswith("]"):
@@ -215,6 +219,8 @@ def dunset(d: Dict[str, Any], key_path: str) -> bool:
 def dsetdef(d: Dict[str, Any], key_path: str, default: Optional[Any] = None) -> bool:
     """\
     Set a default value in a dictionary using a dot-separated key path if the key path does not exist.
+
+    Notice that if key_path exists but its value is None, the default value will also be set.
 
     Args:
         d (Dict[str, Any]): The dictionary to modify.
@@ -515,7 +521,7 @@ class ConfigManager:
             reset (bool): If True, reset the local configuration to the default values.
         """
         if (not reset) and _exists_dir(self.local) and _exists_file(self.local_config_path):
-            logger.warning(f"Local configuration already exists at {self.local_config_path}. Use `reset=True` to overwrite it.")
+            logger.info(f"Local configuration already exists at {self.local_config_path}. Use `reset=True` to overwrite it.")
             self.load()
             return False
         _touch_dir(self.local, clear=False)
@@ -531,7 +537,7 @@ class ConfigManager:
             reset (bool): If True, reset the global configuration to the default values.
         """
         if (not reset) and _exists_dir(self.root) and _exists_file(self.global_config_path):
-            logger.warning(f"Global configuration already exists at {self.global_config_path}. Use `reset=True` to overwrite it.")
+            logger.info(f"Global configuration already exists at {self.global_config_path}. Use `reset=True` to overwrite it.")
             self.load()
             return False
         _touch_dir(self.root, clear=False)

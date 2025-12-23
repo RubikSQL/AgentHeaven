@@ -5,7 +5,7 @@ This package provides a unified approach to generating pytest fixtures
 from declarative JSON configurations in tests.json.
 """
 
-from .config_loader import TestConfigLoader
+from .config_loader import ConfigLoader
 from .factory import UniversalFactory
 from .parametrize import (
     generate_parametrize,
@@ -25,7 +25,7 @@ from .parametrize import (
 from .cleanup import cleanup_instance
 
 __all__ = [
-    "TestConfigLoader",
+    "ConfigLoader",
     "UniversalFactory",
     "generate_parametrize",
     "cleanup_instance",

@@ -13,6 +13,8 @@ __all__ = [
     "create_database",
     "split_sqls",
     "transpile_sql",
+    "prettify_sql",
+    "compare_sqls",
     "load_builtin_sql",
     "SQLProcessor",
 ]
@@ -51,13 +53,16 @@ def get_sqlglot():
 
 
 import os
+import re
 from typing import Dict, Any, Optional, Tuple, List
 from copy import deepcopy
+
+# from urllib.parse import quote_plus
 
 logger = get_logger(__name__)
 
 
-def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def resolve_db_config(database: str = None, provider: str = None, pool: Dict[str, Any] = None, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """\
     Compile a database configuration dictionary based on the following order of priority:
     1. kwargs
@@ -69,11 +74,12 @@ def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> T
     Args:
         database (str, optional): The database name to use.
         provider (str, optional): The database provider name to use (e.g., 'sqlite', 'pg', 'duckdb').
+        pool (Dict[str, Any], optional): Pool configuration to override provider defaults.
         **kwargs: Additional parameters to override in the configuration.
 
     Returns:
         Tuple[Dict[str, Any], Dict[str, Any]]:
-            1. The resolved database configuration dictionary with 'url' and hyperparameters.
+            1. The resolved database configuration dictionary with 'url', 'pool', and hyperparameters.
             Connection parameters (dialect, driver, username, password, host, port, database)
             are used to build the URL and then removed from the final config.
             2. The connection parameters dictionary.
@@ -118,8 +124,8 @@ def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> T
 
     # Extract connection parameters to build URL
     # SQLAlchemy compatible format:
-    #   <dialect>+<driver>://<username>:<password>@<host>:<port>/<database>
-    connection_params = {"dialect", "driver", "host", "port", "username", "password", "database"}
+    #   <dialect>+<driver>://<username>:<password>@<host>:<port>/<database>?<query_params>
+    connection_params = {"dialect", "driver", "host", "port", "username", "password", "database", "query_params"}
     if "url" not in args:
         dialect = args.get("dialect")
         if not dialect:
@@ -130,6 +136,7 @@ def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> T
         username = args.get("username")
         password = args.get("password")
         database = args.get("database", "")
+        query_params = args.get("query_params", {})
         url_parts = [dialect]
         if driver:
             url_parts.extend(["+", driver])
@@ -137,7 +144,7 @@ def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> T
         if username:
             url_parts.append(username)
             if password:
-                url_parts.extend([":", password])
+                url_parts.extend([":", str(password)])
             url_parts.append("@")
         if host:
             url_parts.append(host)
@@ -146,10 +153,25 @@ def resolve_db_config(database: str = None, provider: str = None, **kwargs) -> T
         url_parts.append("/")
         if database:
             url_parts.append(database)
+
+        # Append query parameters from config
+        if query_params:
+            params_list = [f"{k}={v}" for k, v in query_params.items()]
+            url_parts.append("?")
+            url_parts.append("&".join(params_list))
+
         args["url"] = "".join(url_parts)
 
+    # Extract pool config (from provider config, can be overridden by pool argument)
+    pool_config = args.pop("pool", {})
+    if pool:
+        pool_config.update(pool)  # Override with explicit pool argument
+
     # Extract connection args before filtering
+    connection_params = {"dialect", "driver", "host", "port", "username", "password", "database", "query_params"}
     connection_args = {k: v for k, v in args.items() if k in connection_params}
+    connection_args["provider"] = provider  # Include provider for clone() support
+    connection_args["pool"] = pool_config  # Include pool config in connection_args
     args = {k: v for k, v in args.items() if k not in connection_params}
 
     return args, connection_args
@@ -159,9 +181,16 @@ def create_database_engine(config: Dict[str, Any], conn_args: Optional[Dict[str,
     """\
     Create a SQLAlchemy engine from the resolved database configuration.
 
+    Uses appropriate connection pooling strategy based on dialect:
+    - SQLite: StaticPool (file) or SingletonThreadPool (:memory:)
+    - DuckDB: NullPool (thread-safe, no pooling needed)
+    - PostgreSQL/MySQL/MSSQL: QueuePool with configurable settings
+
+    Pool settings are read from conn_args['pool'] (set by resolve_db_config from provider config).
+
     Args:
         config: The database configuration dictionary.
-        conn_args: Connection arguments containing dialect, database, etc.
+        conn_args: Connection arguments containing dialect, database, pool config, etc.
         autocreate: Whether to automatically create the database if it does not exist.
 
     Returns:
@@ -174,21 +203,80 @@ def create_database_engine(config: Dict[str, Any], conn_args: Optional[Dict[str,
     url = config.get("url", None)
     cfg_autocreate = bool(config.get("autocreate", False))
     autocreate_flag = bool(autocreate) or cfg_autocreate
+    dialect = conn_args.get("dialect", "sqlite") if conn_args else "sqlite"
+    database = conn_args.get("database", "") if conn_args else ""
+    pool_config = conn_args.get("pool", {}) if conn_args else {}
 
-    # build engine kwargs but remove control keys that are not passed to create_engine
+    # Build engine kwargs, removing control keys
     engine_kwargs = {k: v for k, v in config.items() if k not in ("url", "autocreate")}
 
-    # No special handling needed - unique database names prevent conflicts
+    # Apply dialect-specific pooling strategy
+    engine_kwargs = _apply_pool_strategy(engine_kwargs, dialect, database, pool_config)
 
-    # Optionally create the target database first (useful for PostgreSQL and file-based sqlite)
+    # Optionally create the target database first
     if autocreate_flag:
         try:
-            create_database(config | conn_args, engine_kwargs=engine_kwargs)
+            create_database(config | (conn_args or {}), engine_kwargs=engine_kwargs)
         except Exception as e:
             safe_url = get_sa_engine().make_url(url).render_as_string(hide_password=True) if url else "unknown"
             logger.warning(f"Failed to autocreate database for url={safe_url}: {e}")
 
     return get_sa().create_engine(url, **engine_kwargs)
+
+
+def _apply_pool_strategy(engine_kwargs: Dict[str, Any], dialect: str, database: str, pool_config: Dict[str, Any]) -> Dict[str, Any]:
+    """\
+    Apply appropriate pooling strategy based on dialect and configuration.
+
+    Args:
+        engine_kwargs: Existing engine keyword arguments.
+        dialect: Database dialect.
+        database: Database name/path.
+        pool_config: Pool configuration from provider config.
+
+    Returns:
+        Updated engine_kwargs with pool settings.
+    """
+    from sqlalchemy.pool import StaticPool, NullPool, QueuePool
+
+    kwargs = dict(engine_kwargs)
+
+    if dialect == "sqlite":
+        # SQLite: Use StaticPool for :memory: (shares single connection across threads)
+        # or NullPool for file-based (SQLite handles its own locking, each thread gets fresh connection)
+        if database == ":memory:":
+            # :memory: requires StaticPool to share the same connection
+            kwargs["poolclass"] = StaticPool
+            kwargs["connect_args"] = kwargs.get("connect_args", {})
+            kwargs["connect_args"]["check_same_thread"] = False
+        else:
+            # File-based SQLite: NullPool is safest for concurrent access
+            # SQLite has its own file-level locking mechanism
+            kwargs["poolclass"] = NullPool
+            kwargs["connect_args"] = kwargs.get("connect_args", {})
+            kwargs["connect_args"]["check_same_thread"] = False
+
+    elif dialect == "duckdb":
+        # DuckDB: thread-safe, use NullPool (no persistent connections)
+        kwargs["poolclass"] = NullPool
+
+    elif dialect in ("postgresql", "postgres", "mysql", "mssql"):
+        # Server-based databases: use QueuePool with configurable settings
+        kwargs["poolclass"] = QueuePool
+
+        # Apply pool config settings
+        if pool_config.get("pool_pre_ping"):
+            kwargs["pool_pre_ping"] = True
+        if "pool_size" in pool_config:
+            kwargs["pool_size"] = pool_config["pool_size"]
+        if "max_overflow" in pool_config:
+            kwargs["max_overflow"] = pool_config["max_overflow"]
+        if "pool_timeout" in pool_config:
+            kwargs["pool_timeout"] = pool_config["pool_timeout"]
+        if "pool_recycle" in pool_config and pool_config["pool_recycle"] > 0:
+            kwargs["pool_recycle"] = pool_config["pool_recycle"]
+
+    return kwargs
 
 
 def create_database(config: Dict[str, Any], engine_kwargs: Optional[Dict[str, Any]] = None) -> None:
@@ -220,8 +308,8 @@ def create_database(config: Dict[str, Any], engine_kwargs: Optional[Dict[str, An
                 touch_dir(db_dir)
         return
 
-    # Handle server-based databases (PostgreSQL, MySQL)
-    if dialect in ("postgresql", "postgres", "mysql"):
+    # Handle server-based databases (PostgreSQL, MySQL, MSSQL)
+    if dialect in ("postgresql", "postgres", "mysql", "mssql"):
         _create_server_database(config, engine_kwargs)
         return
 
@@ -240,7 +328,24 @@ def _create_server_database(config: Dict[str, Any], engine_kwargs: Dict[str, Any
     database_name = config.get("database")
 
     # Create proper maintenance database config using connection parameters directly
-    if dialect in ("postgresql", "postgres"):
+    if dialect == "mssql":
+        maintenance_config = {
+            "dialect": dialect,
+            "driver": config.get("driver"),
+            "host": config.get("host"),
+            "port": config.get("port"),
+            "username": config.get("username"),
+            "password": config.get("password"),
+            "database": "master",  # MSSQL uses master as maintenance database
+            "query_params": config.get("query_params", {}),
+        }
+        exists_query = "SELECT 1 FROM sys.databases WHERE name = :name"
+        create_template = "CREATE DATABASE [{name}]"
+
+        def name_escape(name):
+            return name.replace("]", "]]")
+
+    elif dialect in ("postgresql", "postgres"):
         maintenance_config = {
             "dialect": dialect,
             "driver": config.get("driver"),
@@ -307,6 +412,10 @@ def _create_server_database(config: Dict[str, Any], engine_kwargs: Dict[str, Any
                             logger.info(f"Created database '{database_name}'")
                         finally:
                             ddl_conn.close()
+                    elif dialect == "mssql":
+                        # MSSQL can use the same connection with AUTOCOMMIT
+                        conn.execute(get_sa().text(create_q))
+                        logger.info(f"Created database '{database_name}'")
                     else:
                         # MySQL can use the same connection
                         conn.execute(get_sa().text(create_q))
@@ -346,7 +455,7 @@ def _build_database_url(config: Dict[str, Any]) -> str:
     if username:
         url_parts.append(username)
         if password:
-            url_parts.extend([":", password])
+            url_parts.extend([":", str(password)])
         url_parts.append("@")
 
     if host:
@@ -357,6 +466,13 @@ def _build_database_url(config: Dict[str, Any]) -> str:
     url_parts.append("/")
     if database:
         url_parts.append(database)
+
+    # Append query parameters from config
+    query_params = config.get("query_params", {})
+    if query_params:
+        params_list = [f"{k}={v}" for k, v in query_params.items()]
+        url_parts.append("?")
+        url_parts.append("&".join(params_list))
 
     return "".join(url_parts)
 
@@ -405,6 +521,50 @@ def transpile_sql(query: str, src_dialect: str = "sqlite", tgt_dialect: str = "s
         return get_sqlglot().transpile(query, read=src, write=tgt, comments=False)[0]
     except Exception as e:
         raise ValueError(f"Failed to transpile query from {src_dialect} to {tgt_dialect}: {e}.")
+
+
+def prettify_sql(query: str, dialect: str = "sqlite", comments: bool = True) -> str:
+    """\
+    Prettify a SQL query for better readability (identify + strip).
+
+    Args:
+        query (str): The SQL query to prettify.
+        dialect (str): The SQL dialect to use (default is "sqlite").
+        comments (bool): Whether to keep comments in the output (default is True).
+
+    Returns:
+        str: The prettified SQL query. If failed, returns the original query stripped.
+    """
+    try:
+        return get_sqlglot().transpile(query, read=dialect, write=dialect, identify=True, pretty=True, comments=comments)[0].strip()
+    except Exception as e:
+        logger.warning(f"Failed to prettify SQL query: {e}")
+        return query.strip()
+
+
+def compare_sqls(sql1: str, sql2: str, db) -> bool:
+    """\
+    Given two SQL queries, execute them on the provided database and compare their results.
+
+    Args:
+        sql1 (str): The first SQL query.
+        sql2 (str): The second SQL query.
+        db: The database instance with an `execute_sql` method.
+
+    Returns:
+        bool: True if the results are identical, False otherwise.
+    """
+    try:
+        res1 = db.execute_sql(sql1)
+    except Exception as e:
+        logger.warning(f"Failed to execute sql1 for comparison: {e}")
+        return False
+    try:
+        res2 = db.execute_sql(sql2)
+    except Exception as e:
+        logger.warning(f"Failed to execute sql2 for comparison: {e}")
+        return False
+    return bool(res1 == res2)
 
 
 def load_builtin_sql(query_name: str, dialect: str = "sqlite", **kwargs) -> str:
@@ -525,8 +685,6 @@ class SQLProcessor:
             param_name = match.group(1)
             return f":{param_name}"
 
-        import re
-
         return re.sub(r"%\(([^)]+)\)s", replace_pg_param, query)
 
     def _convert_positional_params(self, query: str, params: tuple) -> tuple[str, dict]:
@@ -561,8 +719,6 @@ class SQLProcessor:
 
         # Handle $-style parameters (PostgreSQL/DuckDB)
         if "$" in query:
-            import re
-
             dollar_params = re.findall(r"\$([a-zA-Z_][a-zA-Z0-9_]*)", query)
 
             for param_name in dollar_params:

@@ -18,11 +18,12 @@ Optional:
         Default mode is "base".
     output_schema (Optional[Dict[str, Any]]): The schema for the output.
         Similar to input_schema, but contain only one dictionary for the output.
-        e.g., `{"mode": "code"}` or `{"mode": "repr"}`.
+        e.g., `{"mode": "code", "args": {"language": "sql"}}` or `{"mode": "repr"}`.
         Default mode is "repr".
     tag (Optional[str]): The tag for the content.
     idx (Optional[int]): The index of the block. Default to no index.
     cutoff (Optional[int]): The cutoff for maximal length. Default to no cutoff.
+    instance_todo (bool): If True, only display the inputs of the instance with output set to TODO and no expected output. Default to False.
 Dependency:
     - "system/block.jinja"
 -#}
@@ -31,12 +32,14 @@ Dependency:
 
 {% for input_key, input_value in instance.inputs.items() %}
 {% set mode = "base" %}
-{% if input_schema is defined and input_schema is not none and input_key in input_schema %}
+{% set args = {} %}
+{% if input_schema is defined and input_schema is not none and input_key in input_schema and 'mode' in input_schema[input_key] %}
 {% set mode = input_schema[input_key].mode | default("base") %}
+{% set args = input_schema[input_key].args | default({}) %}
 {% endif %}
 {% set separator = " " %}
 {% if mode == "code" or mode == "json" %}{% set separator = "\n" %}{% endif %}
-- {{ input_key }}:{{ separator }}{% with content=input_value, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+- {{ input_key }}:{{ separator }}{% with content=input_value, mode=mode, args=args %}{% include "system/block.jinja" %}{% endwith %}
 
 {% endfor -%}
 {%- if (instance.metadata is defined) and (instance.metadata.hints is defined) and instance.metadata.hints is not none and instance.metadata.hints | length > 0 %}
@@ -47,35 +50,41 @@ Dependency:
 - {{ hint | tr }}
 {% endfor -%}
 {% endif -%}
-{%- if instance.output is defined and instance.output is not ellipsis %}
+{%- if (instance.output is defined and instance.output is not ellipsis) or (instance_todo is defined and instance_todo) %}
 
 {% trans %}Output:{% endtrans %}
 
 {% set output_content -%}
+{% if instance_todo is defined and instance_todo %}TODO{% else %}
 {% set mode = "repr" %}
-{% if output_schema is defined and output_schema is not none %}
+{% set args = {} %}
+{% if output_schema is defined and output_schema is not none and 'mode' in output_schema %}
 {% set mode = output_schema.mode | default("repr") %}
+{% set args = output_schema.args | default({}) %}
 {% endif %}
-{% with content=instance.output, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+{% with content=instance.output, mode=mode, args=args %}{% include "system/block.jinja" %}{% endwith %}
+{% endif %}
 {%- endset %}
 {% with content=output_content, mode=mode, tag="output", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
 
 {% endif -%}
-{%- if instance.expected is defined and instance.expected is not ellipsis %}
+{%- if instance.expected is defined and instance.expected is not ellipsis and not (instance_todo is defined and instance_todo) %}
 
 {% trans %}Expected:{% endtrans %}
 
 {% set expected_content -%}
 {% set mode = "repr" %}
-{% if output_schema is defined and output_schema is not none and mode in output_schema %}
+{% set args = {} %}
+{% if output_schema is defined and output_schema is not none and 'mode' in output_schema %}
 {% set mode = output_schema.mode | default("repr") %}
+{% set args = output_schema.args | default({}) %}
 {% endif %}
-{% with content=instance.expected, mode=mode %}{% include "system/block.jinja" %}{% endwith %}
+{% with content=instance.expected, mode=mode, args=args %}{% include "system/block.jinja" %}{% endwith %}
 {%- endset %}
-{% with content=expected_content, mode=mode, tag="expected", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
+{% with content=expected_content, tag="expected", idx=none, cutoff=none %}{% include "system/block_tag.jinja" %}{% endwith %}
 
 {% endif -%}
-{%- if (instance.metadata is defined) and (instance.metadata.notes is defined) and instance.metadata.notes is not none and instance.metadata.notes | length > 0 %}
+{%- if (instance.metadata is defined) and (instance.metadata.notes is defined) and (instance.metadata.notes is not none) and instance.metadata.notes | length > 0 %}
 
 {% trans %}Notes:{% endtrans %}
 

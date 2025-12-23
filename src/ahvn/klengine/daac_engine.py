@@ -56,6 +56,7 @@ class DAACKLEngine(BaseKLEngine):
         normalizer: Optional[Union[Callable[[str], str], bool]] = None,
         name: Optional[str] = None,
         condition: Optional[Callable] = None,
+        encoding: Optional[str] = "utf-8",
         *args,
         **kwargs,
     ):
@@ -76,6 +77,7 @@ class DAACKLEngine(BaseKLEngine):
             name: Name of the KLEngine instance. If None, defaults to "{storage.name}_daac_idx".
             condition: Optional upsert/insert condition to apply to the KLEngine.
                 KLs that do not satisfy the condition will be ignored. If None, all KLs are accepted.
+            encoding (Optional[str]): Encoding used for saving/loading files. Default is None, which uses `HEAVEN_CM`'s default encoding.
             *args: Additional positional arguments passed to BaseKLEngine.
             **kwargs: Additional keyword arguments passed to BaseKLEngine.
         """
@@ -98,6 +100,7 @@ class DAACKLEngine(BaseKLEngine):
         self.encoder = encoder
         self.min_length = min_length
         self.inverse = inverse
+        self.encoding = encoding or HEAVEN_CM.get("core.encoding", "utf-8")
 
         touch_dir(path)
 
@@ -451,12 +454,12 @@ class DAACKLEngine(BaseKLEngine):
             path = self.path
 
         synonyms_data = {k: list(v) for k, v in self.synonyms.items()}
-        save_json(synonyms_data, pj(path, "synonyms.json"))
+        save_json(synonyms_data, pj(path, "synonyms.json"), encoding=self.encoding)
 
         self.ac.save(pj(path, "ac.pkl"), pickle.dumps)
 
         metadata = {"min_length": self.min_length, "inverse": self.inverse, "kl_synonyms": self.kl_synonyms}
-        save_json(metadata, pj(path, "metadata.json"))
+        save_json(metadata, pj(path, "metadata.json"), encoding=self.encoding)
 
     def load(self, path: str = None) -> bool:
         """\
@@ -475,12 +478,12 @@ class DAACKLEngine(BaseKLEngine):
         if not all(exists_file(pj(path, f)) for f in required_files):
             return False
 
-        synonyms_data = load_json(pj(path, "synonyms.json"))
+        synonyms_data = load_json(pj(path, "synonyms.json"), encoding=self.encoding)
         self.synonyms = defaultdict(set)
         for syn, kids in synonyms_data.items():
             self.synonyms[syn] = set(kids)
 
-        metadata = load_json(pj(path, "metadata.json"))
+        metadata = load_json(pj(path, "metadata.json"), encoding=self.encoding)
         self.kl_synonyms = metadata.get("kl_synonyms", {})
         self.kl_synonyms = {int(k): v for k, v in self.kl_synonyms.items()}
 

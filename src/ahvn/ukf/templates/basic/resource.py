@@ -189,9 +189,9 @@ class ResourceUKFT(BaseUKF):
 
     UKF Type: resource
     Recommended Components of `content_resources`:
-        path (str): The original file/directory path.
-        data (Dict[str, Optional[str]]): Serialized file/directory structure from serialize_path.
-        annotations (Dict[str, str]): File-level annotations for context.
+        - path (str): The original file/directory path.
+        - data (Dict[str, Optional[str]]): Serialized file/directory structure from serialize_path.
+        - annotations (Dict[str, str]): File-level annotations for context.
 
     Recommended Composers:
         diagram:

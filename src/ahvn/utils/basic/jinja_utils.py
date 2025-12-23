@@ -3,6 +3,7 @@ __all__ = [
     "babel_compile",
     "load_jinja_env",
     "create_jinja",
+    "get_lang_instruction",
 ]
 
 from .log_utils import get_logger
@@ -10,7 +11,7 @@ from .log_utils import get_logger
 logger = get_logger(__name__)
 from .config_utils import HEAVEN_CM, dmerge, hpj
 
-_encoding = HEAVEN_CM.get("encoding", "utf-8")
+_encoding = HEAVEN_CM.get("core.encoding", "utf-8")
 _src_lang = HEAVEN_CM.get("prompts.main", "en")
 _tgt_lang = HEAVEN_CM.get("prompts.lang", "en")
 _langs = HEAVEN_CM.get("prompts.langs", list())
@@ -169,10 +170,10 @@ def load_jinja_env(
     if lang is None:
         lang = _tgt_lang
 
-    global_paths = dmerge(
+    global_paths: Dict[str, re.Any] = dmerge(
         [
             {k: hpj(scanned, k, abs=True) for k in list_dirs(scanned)}
-            for scanned in list(hpj(p, abs=True) for p in HEAVEN_CM.get("prompts.scan", ["& prompts/"]))
+            for scanned in unique(list(hpj(p, abs=True) for p in HEAVEN_CM.get("prompts.scan", ["& prompts/"])))
         ]
     )
     if path is None:
@@ -240,7 +241,10 @@ def load_jinja_env(
         """Translate a string, returning empty string for empty input."""
         if not s:  # This is required since when s is empty, gettext returns system info
             return s
-        return translations.gettext(s)
+        trs = translations.gettext(s)
+        if not trs:
+            return s
+        return trs
 
     builtin_filters = {
         "zip": zip,
@@ -307,3 +311,21 @@ def create_jinja(
         autoi18n(path, llm_preset="translator")
     babel_compile(path)
     return entry_path
+
+
+def get_lang_instruction(lang: str) -> str:
+    """\
+    Get instruction string for the specified language.
+
+    Args:
+        lang (str): Language code (e.g., 'en', 'fr', 'es', 'zh').
+
+    Returns:
+        str: Instruction string for the specified language.
+    """
+    instructions = {
+        "en": "Output in English.",
+        "zh": "Output in Simplified Chinese.",
+        # TODO: add more languages
+    }
+    return instructions.get(lang, f"Output in {lang}.")

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-08 11:08+0800\n"
+"POT-Creation-Date: 2025-12-18 11:40+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -33,7 +33,93 @@ msgid "The final answer must be a string that supports python `repr`."
 msgstr ""
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:4
+msgid ""
+"The final answer must be a markdown code block containing a valid JSON "
+"object using '```json'."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:5
+msgid "The final answer must be a markdown code block using '```'."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:7
 msgid "Wrap the final answer in `<output></output>` tags."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:8
+msgid "## Function Specification"
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:10
+msgid ""
+"You are a skillful Python expert. Your task is to act as a function and "
+"produce output given its specification and inputs."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:12
+msgid ""
+"You are a skillful Python expert. Your task is to generate a complete "
+"Python function implementation based on the provided signature and test "
+"cases."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:13
+msgid ""
+"Analyze the function signature and test cases to understand the required "
+"logic."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:14
+msgid ""
+"Generate a complete Python function implementation that passes all the "
+"test cases."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:15
+msgid ""
+"Preserve the exact function signature including name, parameters, type "
+"hints, and return type."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:16
+msgid "Include necessary imports at the top level if needed."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:17
+msgid ""
+"DO NOT include the test assertions in your output - only generate the "
+"function implementation."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:18
+msgid "Wrap the complete Python code in a single markdown 'python' code block."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:19
+msgid "Implement the following function:"
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:20
+msgid "# Test cases that your implementation must pass:"
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:22
+msgid "Output in English."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:23
+msgid "Output in Simplified Chinese."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:25
+msgid "The task is not complete. Please continue until the task is complete."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:26
+msgid ""
+"Make sure you use the submit tool to return your final answer. The task "
+"is not complete until a successful submit tool call is made. The submit "
+"tool:"
 msgstr ""
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/block_code.jinja:18
@@ -51,54 +137,71 @@ msgstr[1] ""
 msgid "None"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:45
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:59
 msgid "Task Descriptions"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:65
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:79
 msgid "Tools"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:67
-msgid ""
-"You may use tools to help complete the task. To use a tool, output "
-"`<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should"
-" always be named parameters (ALWAYS use keyword arguments instead of "
-"positional arguments) in the tool's definition. Use one tool at a time "
-"and iterate until you have the final answer (report in "
-"`<output></output>`). The tool's output will be provided to you in the "
-"next message. Here are some tools you can use to complete the task:"
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:81
+msgid "You may use tools to help complete the task."
 msgstr ""
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:82
+msgid ""
+"To use a tool, output `<tool>tool_name(**tool_kwargs)</tool>`, where the "
+"`**tool_kwargs` should always be named parameters in the tool's "
+"definition."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:83
+msgid ""
+"After using a tool, finish your response and wait for the tool's output "
+"to be provided by the user in `<tool_result>\\n...\\n</tool_result>` "
+"format."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:84
+msgid ""
+"Use one tool at a time and iterate until you have the final answer "
+"(report in `<output></output>`)."
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:85
+msgid "Here are some tools you can use to complete the task:"
+msgstr ""
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:100
 msgid "Examples"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:92
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:110
 msgid "Instructions"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:112
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:130
 msgid "New Instance"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:30
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:31
 msgid "Inputs:"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:44
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:47
 msgid "Hints:"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:52
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:55
 msgid "Output:"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:66
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:73
 msgid "Expected:"
 msgstr ""
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:80
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:89
 msgid "Notes:"
 msgstr ""
 

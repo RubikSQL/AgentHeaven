@@ -136,7 +136,7 @@ ahvn setup --reset
 ```bash
 ahvn config set --global llm.providers.openai.api_key <YOUR_OPENAI_API_KEY>
 ahvn config set --global llm.presets.chat.provider openai
-ahvn config set --global llm.presets.chat.model gpt-5.1
+ahvn config set --global llm.presets.chat.model gpt-5.2
 ahvn config set --global llm.presets.embedder.provider openai
 ahvn config set --global llm.presets.embedder.model text-embedding-3-small
 

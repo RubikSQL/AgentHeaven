@@ -21,6 +21,20 @@ Optional:
         - output (Optional[Any]): The output value.
         - expected (Optional[Any]): The expected output value.
         - metadata.notes (Optional[List[str]]): A list of additional notes.
+    input_schema (Optional[Dict[str, Any]]): The schema for the inputs (examples + instance).
+        For each input key, a mode can be specified to format the input value.
+        Currently only support the following mode:
+            - "base": Display the raw value.
+            - "repr": Display the value using its repr().
+            - "json": Display the value as a JSON string.
+            - "code": Display the value as a code block.
+        For more arguments, see "system/block.jinja".
+        Default mode is "base".
+    output_schema (Optional[Dict[str, Any]]): The schema for the output/expected (examples + instance).
+        Similar to input_schema, but contain only one dictionary for the output.
+        e.g., `{"mode": "code", "args": {"language": "sql"}}` or `{"mode": "repr"}`.
+        Default mode is "repr".
+    instance_todo (bool): If True, only display the inputs of the instance with output set to TODO and no expected output.
 Dependency:
     - "system/prompt_instance.jinja"
 -#}
@@ -64,7 +78,11 @@ Dependency:
 {% set section %}
 ## {% trans %}Tools{% endtrans %}
 
-{% trans %}You may use tools to help complete the task. To use a tool, output `<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should always be named parameters (ALWAYS use keyword arguments instead of positional arguments) in the tool's definition. Use one tool at a time and iterate until you have the final answer (report in `<output></output>`). The tool's output will be provided to you in the next message. Here are some tools you can use to complete the task:{% endtrans %}
+{% trans %}You may use tools to help complete the task.{% endtrans %}
+{% trans %}To use a tool, output `<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should always be named parameters in the tool's definition.{% endtrans %}
+{% trans %}After using a tool, finish your response and wait for the tool's output to be provided by the user in `<tool_result>\n...\n</tool_result>` format.{% endtrans %}
+{% trans %}Use one tool at a time and iterate until you have the final answer (report in `<output></output>`).{% endtrans %}
+{% trans %}Here are some tools you can use to complete the task:{% endtrans %}
 
 {% with blocks=ns.tools_content, title=none, depth=2, bullet=none %}
 {% include "system/block_list.jinja" %}
@@ -75,7 +93,7 @@ Dependency:
 
 {%- if examples is defined and examples is not none and examples | length > 0 -%}
 {% set examples_content %}
-{% with examples=examples %}
+{% with examples=examples, input_schema=input_schema | default(none), output_schema=output_schema | default(none) %}
 {% include "system/prompt_examples.jinja" %}
 {% endwith %}
 {% endset %}
@@ -105,7 +123,7 @@ Dependency:
 
 {%- if instance is defined and instance is not none and instance.inputs | length > 0 -%}
 {% set instance_content %}
-{% with instance=instance %}
+{% with instance=instance, input_schema=input_schema | default(none), output_schema=output_schema | default(none), instance_todo=instance_todo | default(true) %}
 {% include "system/prompt_instance.jinja" %}
 {% endwith %}
 {% endset %}

@@ -64,6 +64,13 @@ def get_default_dependencies() -> dict:
             description="DuckDB database support",
             required_for=["database", "analytics"],
         ),
+        "mssql": DependencyInfo(
+            name="mssql",
+            packages=["pyodbc"],
+            install="pip install pyodbc",
+            description="Microsoft SQL Server support",
+            required_for=["database", "mssql_connections"],
+        ),
         "spacy": DependencyInfo(
             name="spacy",
             packages=["spacy"],
@@ -168,13 +175,6 @@ def get_default_dependencies() -> dict:
             install="pip install cx_Oracle sqlalchemy",
             description="Oracle database support",
             required_for=["database", "oracle_connections"],
-        ),
-        "mssql": DependencyInfo(
-            name="mssql",
-            packages=["pymssql"],
-            install="pip install pymssql",
-            description="Microsoft SQL Server support",
-            required_for=["database", "mssql_connections"],
         ),
         "databricks": DependencyInfo(
             name="databricks",

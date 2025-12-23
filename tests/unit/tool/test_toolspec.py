@@ -7,6 +7,7 @@ import pytest
 from ahvn.tool.base import ToolSpec
 from fastmcp.tools import Tool as FastMCPTool
 from mcp.types import Tool as MCPTool
+import inspect
 
 
 def fibonacci(n: int) -> int:
@@ -217,6 +218,25 @@ class TestFibonacciToolSpec:
         assert "Returns:" in docstring
         assert "Raises:" not in docstring  # It should be excluded as it is not standard in tool
         # assert "Examples:" in docstring  # Examples are not implemented for now
+
+    def test_to_function_conversion(self):
+        @ToolSpec(name="add", description="Add two numbers")
+        def add(a: int, b: int) -> int:
+            return a + b
+
+        if not hasattr(add, "to_function"):
+            pytest.skip("to_function not implemented yet")
+
+        func = add.to_function()
+
+        assert func.__name__ == "add"
+        assert func(a=1, b=2) == 3
+        assert func(1, 2) == 3
+
+        sig = inspect.signature(func)
+        assert "a" in sig.parameters and "b" in sig.parameters
+
+        assert "Add two numbers" in (func.__doc__ or "")
 
     def test_fibonacci_json_schema(self):
         """Test JSON schema generation for fibonacci function."""

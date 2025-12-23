@@ -324,7 +324,7 @@ class BaseCache(ABC):
     def set(
         self,
         func: Union[Callable, str],
-        output: Any = None,
+        output: Any = ...,
         expected: Any = ...,
         metadata: Optional[Dict[str, Any]] = None,
         **kwargs,
@@ -395,7 +395,7 @@ class BaseCache(ABC):
             key = int(key)
         self._remove(key)
 
-    def remove(self, func: Union[Callable, str], **kwargs):
+    def unset(self, func: Union[Callable, str], **kwargs):
         """\
         Deletes a cache entry for the given function and inputs.
 
@@ -404,6 +404,15 @@ class BaseCache(ABC):
             **kwargs: Arbitrary keyword arguments representing the inputs to the function.
         """
         self._remove(CacheEntry.from_args(func=func, exclude=self._exclude, **kwargs).key)
+
+    def remove(self, entry: CacheEntry):
+        """\
+        Deletes a cache entry by directly removing it from the cache.
+
+        Args:
+            entry (CacheEntry): The cache entry to remove.
+        """
+        self._remove(entry.key)
 
     def __len__(self) -> int:
         if HEAVEN_CM.get("core.debug"):

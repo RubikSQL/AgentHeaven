@@ -1,5 +1,63 @@
 # Update Log
 
+## v0.9.2.dev2 (2025-12-22)
+
+- **_Feature_: A preliminary version for `AgentSpec` is added (temporarily) for fast prototyping of agents with tools, to be standardized in the following releases**
+
+- **_Feature_: `LLM` now supports `structured` for structured outputs (requires backend to support streaming for now) and `delta_messages`. Meanwhile, `messages` is now compatible with streaming as well**
+
+- **_Feature_: `LLM` inference with tool use now supports kwargs `repair_tool_calls=True` (default behavior), which automatically fixes malformed tool call arguments based on the provided `ToolSpec`s' arguments**
+
+- **_Feature_: `auto*` now supports ExperienceUKFT, KLStore, KLEngine, and KLBase as inputs, with new `search_args`, `ExampleType`, and `ExampleSource` interfaces**
+
+- **_Feature_: `ahvn config` CLI now supports `--cwd/-c` to specify which working directory to use for local config operations**
+
+- **_Feature_: `ahvn config show` CLI now supports adding optional positional argument to specify a sub-key to show only that part of the config**
+
+- **_Feature_: `BaseUKF` now supports `set`, `unset`, `setdef` besides `get`**
+
+- **_Feature_: `BaseUKF.clone` now supports `upd_<field>` for updating iterable fields instead of overwriting**
+
+- _Enhancement_: `Database` now supports `pool` args for robsut connection management
+
+- _Feature_: `DAACKLEngine` now supports custom file (for storing metadata and synonyms) encoding via `encoding` parameter
+
+- _Feature_: `HEAVEN_KB.get_prompt` now supports specifying additional search facets via `**kwargs` to disambiguate prompts with the same name
+
+- _Feature_: `delta_messages` and `gather_stream` utilities added to facilitate streaming LLM queries
+
+- _Feature_: `ahvn pj <path>` CLI command added to view the `hpj` path
+
+- _Feature_: `ORMUKFAdaptor` now supports `main_table_name()`, `dims_table_name(dim)`, and `table_names()` methods
+
+- _Feature_: config now adds `llm.litellm_debug` option to control LiteLLM debug mode separately (only effective when `core.debug` is also `True`)
+
+- _Deprecate_: `raise_mismatch` with `mode='ignore'` now returns the original value directly, while ``mode='match'`` returns the suggestion
+
+- _Deprecate_: `LLMChunk` is no longer exposed (renamed to `_LLMChunk`) as it is an internal state for implementing `LLM.stream`
+
+- _Deprecate_: renamed `Cache.remove(func, **kwargs)` -> `Cache.unset(func, **kwargs)` to correspond to `Cache.set`, with the new `Cache.remove(entry)` corresponding to `Cache.add`
+
+- _Deprecate_: `auto*` prompt composers' defaults now come before user-provided descriptions/instructions instead of after
+
+- _Deprecate_: changed `dset/dunset` behavior when `key_path=None`
+
+- _Fix_: default encoding now correctly reads from `core.encoding` in `HEAVEN_CM` instead of `encoding`
+
+- _Fix_: fixed database adaptor index creation when some fields are aliased, expecting tremendous speedup when using `FacetKLEngine` on large datasets
+
+- _Fix_: milvus vdb `alias` connection support
+
+- _Fix_: improved system prompts translation
+
+- _Fix_: system prompts now correctly handle `input_schema` and `output_schema`
+
+- _Fix_: fixed `copy_dir` errors when `mode='skip'`
+
+- _Fix_: `parse_md` now correctly handles imcomplete streaming and nested markdown structures
+
+<br/>
+
 ## v0.9.2.dev1 (2025-12-09)
 
 - **_Feature_: new `ScanKLEngine`, which brute-force scans all entries in the KLStore for search, useful for small datasets and testing**

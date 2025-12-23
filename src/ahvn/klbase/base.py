@@ -434,9 +434,21 @@ class KLBase(ToolRegistry):
             **kwargs: Additional keyword arguments for the engine's sync method.
         """
         for engine in self.engines.values():
-            if engine.name in self.desync and not include_desynced:
+            if (engine.name in self.desync) and (not include_desynced):
                 continue
             engine.sync(progress=progress, **kwargs)
+
+    def sync_desynced(self, progress: Type[Progress] = None, **kwargs):
+        """
+        Sync all desynced engines (one-time operation).
+
+        Args:
+            progress (Type[Progress]): Progress class for reporting. None for silent, TqdmProgress for terminal.
+            **kwargs: Additional keyword arguments for the engine's sync method.
+        """
+        for ename in self.desync:
+            if ename in self.engines:
+                self.engines[ename].sync(progress=progress, **kwargs)
 
     def flush(self):
         """\

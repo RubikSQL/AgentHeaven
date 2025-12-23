@@ -1,7 +1,7 @@
 __all__ = [
     "Message",
     "Messages",
-    "LLMChunk",
+    "_LLMChunk",
     "LLMResponse",
     "LLM",
     "gather_assistant_message",

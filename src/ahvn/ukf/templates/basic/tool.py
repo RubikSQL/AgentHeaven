@@ -92,12 +92,12 @@ class ToolUKFT(BaseUKF):
     UKF Type: tool
 
     Recommended Components of `content_resources`:
-        tool_name (str): The name of the tool.
-        description (str): Detailed tool description.
-        input_schema (Dict): JSON Schema for input parameters (with binds applied).
-        output_schema (Dict): JSON Schema for output structure.
-        examples (List[Dict], optional): Example usage cases.
-        client_config (Dict, optional): Client connection configuration.
+        - tool_name (str): The name of the tool.
+        - description (str): Detailed tool description.
+        - input_schema (Dict): JSON Schema for input parameters (with binds applied).
+        - output_schema (Dict): JSON Schema for output structure.
+        - examples (List[Dict], optional): Example usage cases.
+        - client_config (Dict, optional): Client connection configuration.
             - type (str): Connection type ("http", "stdio", "inmemory")
             - url (str, optional): URL for HTTP connections
             - script_path (str, optional): Python file path for stdio
