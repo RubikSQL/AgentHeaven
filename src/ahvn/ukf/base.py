@@ -25,7 +25,7 @@ from ..utils.basic.log_utils import get_logger
 from ..utils.basic.hash_utils import md5hash, fmt_hash
 from ..utils.basic.serialize_utils import dumps_json, loads_json, serialize_func, deserialize_func
 from ..utils.basic.debug_utils import error_str
-from ..utils.basic.config_utils import HEAVEN_CM, dget
+from ..utils.basic.config_utils import HEAVEN_CM, dget, dset, dunset, dsetdef
 
 logger = get_logger(__name__)
 
@@ -471,9 +471,9 @@ class BaseUKF(BaseModel):
     @classmethod
     def _serialize_relation(cls, relation: Tuple[int, str, int, Optional[int], Optional[Dict[str, Any]]]) -> Tuple[int, str, int, Optional[int], Optional[str]]:
         return (
-            relation[0],  # subject_id
+            int(relation[0]),  # subject_id
             relation[1],  # relation
-            relation[2],  # object_id
+            int(relation[2]),  # object_id
             None if len(relation) <= 3 else relation[3],  # relation_id
             None if len(relation) <= 4 else cls._serialize_relation_resources(relation[4]),  # relation_resources
         )
@@ -483,9 +483,9 @@ class BaseUKF(BaseModel):
         cls, relation: Tuple[int, str, int, Optional[int], Optional[str]]
     ) -> Tuple[int, str, int, Optional[int], Optional[Dict[str, Any]]]:
         return (
-            relation[0],  # subject_id
+            fmt_hash(relation[0]),  # subject_id
             relation[1],  # relation
-            relation[2],  # object_id
+            fmt_hash(relation[2]),  # object_id
             None if len(relation) <= 3 else relation[3],  # relation_id
             None if len(relation) <= 4 else cls._deserialize_relation_resources(relation[4]),  # relation_resources
         )
@@ -951,6 +951,7 @@ class BaseUKF(BaseModel):
                 will also change the computed id, making this a different
                 knowledge item, which could be undesired in some scenarios.
                 Usually, this is used when defining new sub-type UKFTs.
+                If polymorphic=True, this parameter is ignored.
 
         Returns:
             BaseUKF: Validated model instance of the appropriate UKFT subclass.
@@ -958,12 +959,14 @@ class BaseUKF(BaseModel):
         Examples:
             >>> prompt = PromptUKFT(name="test", ...)
             >>> # Preserve original type
-            >>> copy1 = BaseUKF.from_ukf(prompt)  # Returns PromptUKFT
+            >>> copy1 = BaseUKF.from_ukf(prompt)
+            >>> # copy1.type == "prompt" and type(copy1) == PromptUKFT
             >>> # Intentional downcast to parent type (keeps original type field)
             >>> resource = ResourceUKFT.from_ukf(prompt, polymorphic=False)
+            >>> # resource.type == "prompt" and type(resource) == ResourceUKFT
             >>> # True downcast with type field override
             >>> resource2 = ResourceUKFT.from_ukf(prompt, polymorphic=False, override_type=True)
-            >>> # resource2.type == "resource"
+            >>> # resource2.type == "resource" and type(resource2) == ResourceUKFT
         """
         if not isinstance(ukf, BaseUKF):
             raise ValueError(f"Cannot create {cls.__name__} from {type(ukf).__name__}.")
@@ -1003,6 +1006,44 @@ class BaseUKF(BaseModel):
             Any: The value found at the specified key path, or the default if not found.
         """
         return dget(self.content_resources, key_path, default)
+
+    def set(self, key_path: str, value: Any) -> bool:
+        """\
+        Set a nested value in the BaseUKF's `content_resources` using a dot-separated key path.
+
+        Args:
+            key_path (str): Dot-separated path to set the value (e.g., "level1.level2.key").
+            value (Any): The value to set at the specified key path.
+
+        Returns:
+            bool: True if the value was set successfully, False otherwise.
+        """
+        return dset(self.content_resources, key_path, value)
+
+    def unset(self, key_path: str) -> bool:
+        """\
+        Remove a nested value from the BaseUKF's `content_resources` using a dot-separated key path.
+
+        Args:
+            key_path (str): Dot-separated path to the value to remove (e.g., "level1.level2.key").
+
+        Returns:
+            bool: True if the value was removed successfully, False otherwise.
+        """
+        return dunset(self.content_resources, key_path)
+
+    def setdef(self, key_path: str, value: Any) -> bool:
+        """\
+        Set a nested value in the BaseUKF's `content_resources` only if the key path does not already exist.
+
+        Args:
+            key_path (str): Dot-separated path to set the value (e.g., "level1.level2.key").
+            value (Any): The value to set at the specified key path.
+
+        Returns:
+            bool: True if the value was set successfully, False if the key path already exists.
+        """
+        return dsetdef(self.content_resources, key_path, value)
 
     def set_inactive(self):
         """Mark the item as inactive by setting :pyattr:`inactive_mark` to True."""
@@ -1305,11 +1346,19 @@ class BaseUKF(BaseModel):
 
         Args:
             **updates: Field values to override in the cloned instance.
+                For dict/list/set fields, use `upd_<field>` to update items instead of overwriting.
+                Typical fields that support this are :pyattr:`tags`, :pyattr:`synonyms`,
+                :pyattr:`related`, :pyattr:`auths`, :pyattr:`triggers`, :pyattr:`content_composers`,
+                :pyattr: `content_resources`, :pyattr:`metadata`, etc.
 
         Returns:
             BaseUKF: New instance with the requested updates applied.
         """
-        new_knowledge = self.model_copy(update=updates, deep=True)
+        upd_fields = {k[4:]: v for k, v in updates.items() if k.startswith("upd_")}
+        other_fields = {k: v for k, v in updates.items() if not k.startswith("upd_")}
+        new_knowledge = self.model_copy(update=other_fields, deep=True)
+        for field, items in upd_fields.items():
+            getattr(new_knowledge, field).update(items)
         new_knowledge._resetinternal_fields()
         return new_knowledge
 
@@ -1322,6 +1371,10 @@ class BaseUKF(BaseModel):
 
         Args:
             **updates: Additional field updates to apply to the derived item.
+                For dict/list/set fields, use `upd_<field>` to update items instead of overwriting.
+                Typical fields that support this are :pyattr:`tags`, :pyattr:`synonyms`,
+                :pyattr:`related`, :pyattr:`auths`, :pyattr:`triggers`, :pyattr:`content_composers`,
+                :pyattr: `content_resources`, :pyattr:`metadata`, etc.
 
         Returns:
             BaseUKF: Derived instance.

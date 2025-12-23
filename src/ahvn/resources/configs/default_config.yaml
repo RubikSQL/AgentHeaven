@@ -47,6 +47,7 @@ prompts:
         - "~/.ahvn/prompts/"
 
 llm:
+    litellm_debug: false
     # LiteLLM compatible format:
     #   <provider>/<model_identifier>
     default_args:
@@ -54,6 +55,8 @@ llm:
         timeout: 120
         http_proxy: null
         https_proxy: null
+        repair_tool_calls: true
+        enforce_non_stream: false  # TODO: support inference backends that are not stream-compatible for tooluse
     
     default_preset: sys
     presets:
@@ -66,7 +69,7 @@ llm:
             provider: ollama
             model: qwen3-4b
         chat-expert:
-            model: gpt-5.1
+            model: gpt-5.2
         chat:
             model: dsv3
         chat-local:
@@ -100,23 +103,25 @@ llm:
 
     default_model: dsv3
     models:
-        GPT-5.1:
+        GPT-5.2:
             aliases:
-                - gpt5.1
-                - GPT5.1
-                - gpt-5.1
+                - gpt5.2
+                - GPT5.2
+                - gpt-5.2
             default_provider: openrouter
             identifiers:
-                openrouter: openai/gpt-5.1
-                openai: gpt-5.1
-        Gemini-2.5-Flash:
+                openrouter: openai/gpt-5.2
+                openai: gpt-5.2
+        Gemini-3.0-Flash:
             aliases:
-                - gemini-2.5-flash
+                - gemini-3.0-flash
                 - gemini-flash
             default_provider: openrouter
             identifiers:
-                openrouter: google/gemini-2.5-flash-preview-09-2025
-                gemini: gemini-2.5-flash-preview-09-2025
+                openrouter: google/gemini-3-flash-preview
+                gemini: gemini-3-flash-preview
+            default_args:
+                temperature: 1.0  # For Gemini 3 models, LiteLLM defaults temperature to 1.0 and strongly recommends keeping it at this default.
         Gemini-3.0-Pro:
             aliases:
                 - gemini-3.0-pro
@@ -128,6 +133,8 @@ llm:
             identifiers:
                 openrouter: google/gemini-3-pro-preview
                 gemini: gemini-3-pro-preview
+            default_args:
+                temperature: 1.0  # For Gemini 3 models, LiteLLM defaults temperature to 1.0 and strongly recommends keeping it at this default.
         Claude-Opus-4.5:
             aliases:
                 - opus
@@ -308,21 +315,59 @@ db:
         sqlite:
             dialect: sqlite
             database: "./.ahvn/sqlite.db"
+            # Pool: StaticPool for file DBs, SingletonThreadPool for :memory:
+            pool:
+                pool_pre_ping: false
+                pool_recycle: -1
         duckdb:
             dialect: duckdb
             database: "./.ahvn/duckdb.db"
+            # Pool: NullPool (creates new connection each time, thread-safe)
+            pool:
+                pool_pre_ping: false
+                pool_recycle: -1
         pg:
             dialect: postgresql
             driver: psycopg2
             host: "localhost"
             port: 5432
             username: "${whoami}"
+            # Pool: QueuePool with pre-ping for stale connection detection
+            pool:
+                pool_pre_ping: true
+                pool_size: 5
+                max_overflow: 10
+                pool_timeout: 30
+                pool_recycle: 3600
         mysql:
             dialect: mysql
             driver: pymysql
             host: "localhost"
             port: 3306
             username: "root"
+            # Pool: Conservative settings to avoid "gone away" errors
+            pool:
+                pool_pre_ping: true
+                pool_size: 3
+                max_overflow: 2
+                pool_timeout: 30
+                pool_recycle: 1800
+        mssql:
+            dialect: mssql
+            driver: pyodbc
+            host: "localhost"
+            port: 1433
+            username: "sa"
+            query_params:
+                driver: "ODBC Driver 18 for SQL Server"
+                TrustServerCertificate: "yes"
+            # Pool: Similar to PostgreSQL
+            pool:
+                pool_pre_ping: true
+                pool_size: 5
+                max_overflow: 10
+                pool_timeout: 30
+                pool_recycle: 3600
 
 vdb:
     # Supports Lance, ChromaDB, Milvus, and PGVector
@@ -377,6 +422,9 @@ mdb:
         authSource: "admin"
         database: "default"
         collection: "default"
+
+agent:
+    max_stesp: 20
 
 imitator:
     scheduler:

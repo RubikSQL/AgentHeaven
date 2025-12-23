@@ -3,11 +3,16 @@ __all__ = [
     "setup_heaven_kb",
 ]
 
-from ahvn.utils.basic.config_utils import hpj
 from ahvn.cache import JsonCache
 from ahvn.klstore.cache_store import CacheKLStore
 from ahvn.klengine.scan_engine import ScanKLEngine
 from ahvn.klbase.base import KLBase
+from ahvn.ukf.templates.basic.prompt import PromptUKFT
+
+from ahvn.utils.basic.config_utils import hpj, HEAVEN_CM
+from ahvn.utils.basic.log_utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class AhvnKLBase(KLBase):
@@ -26,30 +31,56 @@ class AhvnKLBase(KLBase):
             )
         )
 
+    def get_prompt(self, name: str, **kwargs) -> PromptUKFT:
+        results = self.search(engine="prompts", name=name, **kwargs)
+        if not results:
+            raise ValueError(f"Prompt '{name}' not found in HEAVEN_KB.")
+        if len(results) > 1:
+            raise ValueError(f"Multiple prompts named '{name}' found in HEAVEN_KB. Please refine your search facets by adding `**kwargs`.")
+        return results[0]["kl"]
+
 
 HEAVEN_KB = AhvnKLBase()
-# # HEAVEN_STORES is a temporarily global store for AgentHeaven resources.
-# # This will be replaced by a more robust resource management system (KLBase) in the future.
-# # Currently, it only contains prompt UKFs used by various AgentHeaven components.
-# HEAVEN_STORES = {
-#     "prompts": CacheKLStore(name="prompts", cache=JsonCache(hpj("& ukfs/prompts"))),
-# }
 
 
 def setup_heaven_kb():
+    logger.info("Re-generating HEAVEN_KB...")
     HEAVEN_KB.clear()
 
     from ahvn.utils.exts.autotask import build_autotask_base_prompt
     from ahvn.utils.exts.autocode import build_autocode_base_prompt
     from ahvn.utils.exts.autofunc import build_autofunc_base_prompt
 
-    autotask_prompt = build_autotask_base_prompt()
+    base_prompt = PromptUKFT.from_path(
+        "& prompts/system",
+        default_entry="prompt.jinja",
+        name="prompt",
+    )
+    autotask_base_prompt = build_autotask_base_prompt(output_schema=None)
+    autotask_text_prompt = build_autotask_base_prompt(output_schema={"mode": "base"})
+    autotask_repr_prompt = build_autotask_base_prompt(output_schema={"mode": "repr"})
+    autotask_json_prompt = build_autotask_base_prompt(output_schema={"mode": "json", "args": {"indent": 4}})
+    autotask_code_prompt = build_autotask_base_prompt(output_schema={"mode": "code"})
     autocode_prompt = build_autocode_base_prompt()
     autofunc_prompt = build_autofunc_base_prompt()
     HEAVEN_KB.batch_upsert(
-        [autotask_prompt, autocode_prompt, autofunc_prompt],
+        [
+            base_prompt,
+            autotask_base_prompt,
+            autotask_text_prompt,
+            autotask_repr_prompt,
+            autotask_json_prompt,
+            autotask_code_prompt,
+            autocode_prompt,
+            autofunc_prompt,
+        ],
         storages=["_prompts"],
     )
+
+
+# Temporary trigger for initial setup
+if (len(HEAVEN_KB.storages["_prompts"]) == 0) or (HEAVEN_CM.get("core.debug")):
+    setup_heaven_kb()
 
 
 if __name__ == "__main__":

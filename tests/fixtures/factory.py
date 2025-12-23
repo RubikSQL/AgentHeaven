@@ -46,7 +46,7 @@ class UniversalFactory:
 
         Args:
             cache_type: Cache type (InMemCache, DiskCache, JsonCache, DatabaseCache, MongoCache)
-            backend: Backend type for DatabaseCache (sqlite, duckdb, postgresql, mysql)
+            backend: Backend type for DatabaseCache (sqlite, duckdb, postgresql, mysql, mssql, etc.)
             path: Path for file-based caches, database path, or MongoDB collection name
             label: Label for generating short names (optional)
 
@@ -108,7 +108,7 @@ class UniversalFactory:
         Create a database instance from JSON configuration.
 
         Args:
-            backend: Database backend (sqlite, duckdb, postgresql, mysql)
+            backend: Database backend (sqlite, duckdb, postgresql, mysql, mssql, etc.)
             path: Database path or name
             label: Label for generating short names (optional)
 

@@ -107,6 +107,19 @@ class Progress(ABC):
 
         return None
 
+    def write(self, s: str, level: int = logging.INFO, **kwargs) -> None:
+        """\
+        Write a message through the progress bar's output mechanism.
+        Default to using the AgentHeaven logger using the progress bar's class name.
+
+        Args:
+            s (str): The string to write.
+            level (int): Logging level to use. Defaults to logging.INFO.
+            **kwargs: Additional keyword arguments for logging.
+        """
+        logger = get_logger(self.__class__.__name__)
+        logger.log(level=level, msg=str(s).strip(), **kwargs)
+
     @abstractmethod
     def update_total(self, total: Optional[int]) -> None:
         """\
@@ -271,8 +284,17 @@ class LogProgress(Progress):
         """Set prefix text (between description and percentage)."""
         self._prefix = prefix
 
-    def write(self, s: str, file: Any = None, end: str = "\n") -> None:
-        self._logger.log(self._level, s.rstrip())
+    def write(self, s: str, level: Optional[int] = None, **kwargs) -> None:
+        """\
+        Write a message through the progress bar's logging mechanism.
+
+        Args:
+            s (str): The string to write.
+            level (Optional[int]): Logging level to use. Defaults to the progress bar's level.
+            **kwargs: Additional keyword arguments for logging.
+        """
+        log_level = level if level is not None else self._level
+        self._logger.log(level=log_level, msg=str(s).strip(), **kwargs)
 
     def close(self) -> None:
         if not self._closed:
@@ -358,8 +380,17 @@ class TqdmProgress(Progress):
     def set_postfix(self, ordered_dict: Optional[dict] = None, refresh: bool = True, **kwargs) -> None:
         self._tqdm.set_postfix(ordered_dict, refresh=refresh, **kwargs)
 
-    def write(self, s: str, file: Any = None, end: str = "\n") -> None:
-        self._tqdm.write(s, file=file, end=end)
+    def write(self, s: str, file: Any = None, end: str = "\n", **kwargs) -> None:
+        """\
+        Write a message through the tqdm progress bar's output mechanism.
+
+        Args:
+            s (str): The string to write.
+            file (Any): File-like object to write to. Defaults to sys.stderr.
+            end (str): End character. Defaults to newline.
+            **kwargs: Additional keyword arguments for logging.
+        """
+        self._tqdm.write(s, file=file, end=end, **kwargs)
 
     def close(self) -> None:
         if not self._closed:

@@ -12,7 +12,7 @@ from ....utils.basic.config_utils import hpj, HEAVEN_CM
 from ....utils.basic.file_utils import exists_file, get_file_basename, has_file_ext
 from ....utils.basic.hash_utils import md5hash, fmt_hash
 
-from typing import Union, Optional, List, Dict, Any, ClassVar
+from typing import Union, Optional, List, Dict, Any, ClassVar, Callable
 from jinja2 import Environment
 
 import tempfile
@@ -68,10 +68,10 @@ class PromptUKFT(ResourceUKFT):
 
     UKF Type: prompt
     Recommended Components of `content_resources`:
-        path (str): The original prompt folder path.
-        data (Dict[str, Optional[str]]): Serialized folder structure from serialize_path.
-        annotations (Dict[str, str]): File-level annotations for context.
-        lang (str): Default language for rendering templates (defaults to config).
+        - path (str): The original prompt folder path.
+        - data (Dict[str, Optional[str]]): Serialized folder structure from serialize_path.
+        - annotations (Dict[str, str]): File-level annotations for context.
+        - lang (str): Default language for rendering templates (defaults to config).
 
     Recommended Composers:
         prompt_list:
@@ -324,8 +324,8 @@ class PromptUKFT(ResourceUKFT):
         binds = self.get("binds") or dict()
         return tmpl.render(**(binds | kwargs))
 
-    def format(self, **kwargs) -> str:
-        return self.text(**kwargs)
+    def format(self, composer: Optional[Union[str, Callable]] = "default", **kwargs) -> str:
+        return self.text(composer=composer, **kwargs)
 
     def list_templates(self) -> List[str]:
         """\

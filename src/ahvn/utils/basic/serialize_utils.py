@@ -28,6 +28,7 @@ __all__ = [
     "load_json",
     "dump_json",
     "save_json",
+    "escape_json",
     "loads_jsonl",
     "dumps_jsonl",
     "load_jsonl",
@@ -40,6 +41,7 @@ __all__ = [
 import binascii
 import base64
 import os
+import re
 from .log_utils import get_logger
 
 logger = get_logger(__name__)
@@ -48,7 +50,7 @@ from .debug_utils import FunctionDeserializationError
 from .config_utils import HEAVEN_CM, hpj
 from .file_utils import exists_file, exists_dir, enum_files, enum_dirs
 
-_encoding = HEAVEN_CM.get("encoding", "utf-8")
+_encoding = HEAVEN_CM.get("core.encoding", "utf-8")
 
 from typing import Any, Dict, List, Optional, Literal, Generator, Callable, Union
 import json
@@ -788,6 +790,211 @@ def save_json(
         os.makedirs(dir, exist_ok=True)
     with open(path, "w", encoding=encoding or _encoding, errors="ignore") as fp:
         json.dump(obj, fp, cls=AhvnJsonEncoder, sort_keys=sort_keys, indent=indent, ensure_ascii=ensure_ascii, **kwargs)
+
+
+def escape_json(s: str, args: List[str], **kwargs) -> str:
+    """
+    Fixes corrupted JSON by escaping string values for known keys.
+
+    - Only processes keys listed in `args`
+    - Only escapes string values
+    - Leaves non-string values untouched
+    - Handles unescaped quotes and newlines inside strings
+
+    Args:
+        s (str): The corrupted JSON string.
+        args (List[str]): List of keys whose string values need to be escaped.
+        **kwargs: Additional keyword arguments to pass to `json.dumps` when returning the repaired JSON
+
+    Returns:
+        str: The repaired JSON string.
+    """
+
+    try:
+        return dumps_json(loads_json(s), **kwargs)
+    except json.JSONDecodeError:
+        pass
+
+    # Strip trailing whitespace/newlines
+    s = s.strip()
+
+    result = {}
+    i = 0
+    n = len(s)
+
+    def skip_whitespace():
+        nonlocal i
+        while i < n and s[i] in " \t\n\r":
+            i += 1
+
+    def parse_string_key():
+        """Parse a properly quoted key string."""
+        nonlocal i
+        if s[i] != '"':
+            raise ValueError(f"Expected '\"' at position {i}")
+        i += 1
+        start = i
+        while i < n and s[i] != '"':
+            if s[i] == "\\" and i + 1 < n:
+                i += 2
+            else:
+                i += 1
+        if i >= n:
+            raise ValueError("Unterminated string key")
+        key = s[start:i]
+        i += 1
+        return key
+
+    def find_value_end_for_key(key: str):
+        """Find end of value for a known key - handles corrupted string values."""
+        nonlocal i
+        skip_whitespace()
+        if i >= n:
+            return None
+
+        # Non-string values: arrays, objects, numbers, booleans, null
+        if s[i] == "[":
+            # Array - find matching bracket
+            depth = 1
+            i += 1
+            in_str = False
+            while i < n and depth > 0:
+                if s[i] == '"' and (i == 0 or s[i - 1] != "\\"):
+                    in_str = not in_str
+                elif not in_str:
+                    if s[i] == "[":
+                        depth += 1
+                    elif s[i] == "]":
+                        depth -= 1
+                i += 1
+            try:
+                return json.loads(s[start_pos:i])
+            except json.JSONDecodeError:
+                # Try to parse as list of strings
+                arr_content = s[start_pos + 1 : i - 1].strip()
+                items = []
+                for item in arr_content.split(","):
+                    item = item.strip()
+                    if item.startswith('"') and item.endswith('"'):
+                        items.append(item[1:-1])
+                    elif item:
+                        try:
+                            items.append(json.loads(item))
+                        except json.JSONDecodeError:
+                            items.append(item)
+                return items
+        elif s[i] == "{":
+            # Nested object - find matching brace
+            depth = 1
+            i += 1
+            in_str = False
+            while i < n and depth > 0:
+                if s[i] == '"' and (i == 0 or s[i - 1] != "\\"):
+                    in_str = not in_str
+                elif not in_str:
+                    if s[i] == "{":
+                        depth += 1
+                    elif s[i] == "}":
+                        depth -= 1
+                i += 1
+            return json.loads(s[start_pos:i])
+        elif s[i] == '"':
+            # String value - this is where corruption may occur
+            i += 1  # skip opening quote
+
+            # Find the next key pattern or end of object to determine where value ends
+            next_key_patterns = []
+            for arg in args:
+                next_key_patterns.append(f'"{arg}"')
+                next_key_patterns.append(f', "{arg}"')
+
+            # Look for end: either ", "key": or "}
+            value_chars = []
+            while i < n:
+                # Check if we're at end of object
+                if s[i] == "}" and (not value_chars or value_chars[-1] != "\\"):
+                    # Check if previous char was closing quote
+                    if value_chars and value_chars[-1] == '"':
+                        value_chars.pop()
+                        break
+                    # Otherwise include everything up to here
+                    break
+
+                # Check for pattern: ", "key":
+                found_next_key = False
+                for arg in args:
+                    pattern1 = f', "{arg}":'
+                    pattern2 = f',"{arg}":'
+                    if s[i:].startswith(pattern1) or s[i:].startswith(pattern2):
+                        # End of current value - remove trailing quote if present
+                        if value_chars and value_chars[-1] == '"':
+                            value_chars.pop()
+                        found_next_key = True
+                        break
+                if found_next_key:
+                    break
+
+                value_chars.append(s[i])
+                i += 1
+
+            value = "".join(value_chars)
+            return value
+        else:
+            # Number, boolean, null
+            start = i
+            while i < n and s[i] not in ",}]\n\r":
+                i += 1
+            token = s[start:i].strip()
+            if token == "true":
+                return True
+            elif token == "false":
+                return False
+            elif token == "null":
+                return None
+            else:
+                try:
+                    if "." in token:
+                        return float(token)
+                    return int(token)
+                except ValueError:
+                    return token
+
+    # Parse the JSON object
+    skip_whitespace()
+    if s[i] != "{":
+        raise ValueError(f"Expected '{{' at position {i}")
+    i += 1
+
+    while i < n:
+        skip_whitespace()
+        if i >= n or s[i] == "}":
+            break
+
+        # Skip comma
+        if s[i] == ",":
+            i += 1
+            skip_whitespace()
+
+        if i >= n or s[i] == "}":
+            break
+
+        # Parse key
+        key = parse_string_key()
+
+        skip_whitespace()
+        if s[i] != ":":
+            raise ValueError(f"Expected ':' after key at position {i}")
+        i += 1
+        skip_whitespace()
+
+        start_pos = i
+        value = find_value_end_for_key(key)
+        result[key] = value
+
+    try:
+        return dumps_json(result, **kwargs)
+    except json.JSONDecodeError:
+        raise ValueError(f"Failed to repair JSON string.\n{repr(s)}")
 
 
 def loads_jsonl(s: str, **kwargs) -> List[Any]:

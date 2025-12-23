@@ -98,12 +98,13 @@ class ExperienceUKFT(BaseUKF):
 
     UKF Type: experience
     Recommended Components of `content_resources`:
-        func (str): The name of the generator of this experience instance.
-        inputs (Dict): The inputs.
-        output (Any): The output.
-        expected (Any): The ground-truth output.
-        hints (List[str]): Optional hints or notes about the experience instance.
-        metatdata (Dict): Any extra information related to the experience instance.
+        - func (str): The name of the generator of this experience instance.
+        - inputs (Dict): The inputs.
+        - output (Any): The output.
+        - expected (Any): The ground-truth output.
+        - hints (List[str]): Optional hints or notes about the experience instance.
+        - metatdata (Dict): Any extra information related to the experience instance.
+
     Recommended Composers:
         assert:
             Examples:
@@ -164,7 +165,7 @@ class ExperienceUKFT(BaseUKF):
             **{k: v for k, v in updates.items() if k != "content_resources"},
         )
 
-    def to_cache_entry(self) -> CacheEntry:
+    def to_cache_entry(self, **updates) -> CacheEntry:
         """\
             Convert the ExperienceUKFT instance to a CacheEntry.
 
@@ -175,6 +176,7 @@ class ExperienceUKFT(BaseUKF):
         Returns:
             CacheEntry: A CacheEntry object populated with the ExperienceUKFT's
                 function name, inputs, and output.
+            **updates: Additional keyword arguments to update the CacheEntry attributes.
 
         Example:
             >>> exp = ExperienceUKFT(name="exp", content_resources={"func": "add", "inputs": {"a": 1, "b": 2}, "output": 3})
@@ -186,7 +188,7 @@ class ExperienceUKFT(BaseUKF):
             >>> cache_entry.output
             3
         """
-        return CacheEntry.from_dict(self.content_resources)
+        return CacheEntry.from_dict(self.content_resources | updates)
 
     def annotate(self, expected: Any = ..., **updates) -> "ExperienceUKFT":
         """\

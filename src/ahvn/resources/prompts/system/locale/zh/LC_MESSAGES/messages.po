@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-08 11:08+0800\n"
+"POT-Creation-Date: 2025-12-18 11:40+0800\n"
 "PO-Revision-Date: 2025-10-31 17:20+0800\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: zh\n"
@@ -34,8 +34,95 @@ msgid "The final answer must be a string that supports python `repr`."
 msgstr "最终答案必须是可以通过python `repr` 解析的字符串。"
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:4
+msgid ""
+"The final answer must be a markdown code block containing a valid JSON "
+"object using '```json'."
+msgstr "最终答案必须是一个包含有效 JSON 对象的 markdown 代码块，使用 '```json'。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:5
+msgid "The final answer must be a markdown code block using '```'."
+msgstr "最终答案必须是使用 '```' 的 markdown 代码块。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:7
 msgid "Wrap the final answer in `<output></output>` tags."
-msgstr "最终答案需要用 `<output></output>` 标签包裹起来。"
+msgstr "最终答案必须使用 `<output></output>` 标签包裹起来。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:8
+msgid "## Function Specification"
+msgstr "## 函数描述"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:10
+msgid ""
+"You are a skillful Python expert. Your task is to act as a function and "
+"produce output given its specification and inputs."
+msgstr "你是一位熟练的 Python 专家。你的任务是根据函数的描述和输入来生成输出。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:12
+msgid ""
+"You are a skillful Python expert. Your task is to generate a complete "
+"Python function implementation based on the provided signature and test "
+"cases."
+msgstr "你是一位熟练的 Python 专家。你的任务是根据提供的函数签名和测试用例生成一个完整的 Python 函数实现。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:13
+msgid ""
+"Analyze the function signature and test cases to understand the required "
+"logic."
+msgstr "分析函数签名和测试用例以理解所需的逻辑。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:14
+msgid ""
+"Generate a complete Python function implementation that passes all the "
+"test cases."
+msgstr "生成一个完整的 Python 函数实现，能够通过所有测试用例。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:15
+msgid ""
+"Preserve the exact function signature including name, parameters, type "
+"hints, and return type."
+msgstr "保留函数的精确签名，包括名称、参数、类型提示和返回类型。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:16
+msgid "Include necessary imports at the top level if needed."
+msgstr "如有必要，在顶部包含必要的导入语句。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:17
+msgid ""
+"DO NOT include the test assertions in your output - only generate the "
+"function implementation."
+msgstr "不要在输出中包含测试用例——只生成函数实现。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:18
+msgid "Wrap the complete Python code in a single markdown 'python' code block."
+msgstr "将完整的 Python 代码包裹在单个 markdown 的 'python' 代码块中。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:19
+msgid "Implement the following function:"
+msgstr "实现以下函数："
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:20
+msgid "# Test cases that your implementation must pass:"
+msgstr "# 你的实现必须通过的测试用例："
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:22
+msgid "Output in English."
+msgstr "使用英文输出。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:23
+msgid "Output in Simplified Chinese."
+msgstr "使用简体中文输出。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:25
+#, fuzzy
+msgid "The task is not complete. Please continue until the task is complete."
+msgstr "任务尚未完成。请继续，直到任务完成。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/_locales.jinja:26
+msgid ""
+"Make sure you use the submit tool to return your final answer. The task "
+"is not complete until a successful submit tool call is made. The submit "
+"tool:"
+msgstr "确保你使用提交工具来返回你的最终答案。只有在成功调用提交工具后，任务才算完成。提交工具："
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/block_code.jinja:18
 msgid "File:"
@@ -51,59 +138,73 @@ msgstr[0] "...（省略了 %(cnt)s 条记录）"
 msgid "None"
 msgstr "无"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:45
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:59
 msgid "Task Descriptions"
 msgstr "任务描述"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:65
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:79
 msgid "Tools"
 msgstr "工具"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:67
-#, fuzzy
-msgid ""
-"You may use tools to help complete the task. To use a tool, output "
-"`<tool>tool_name(**tool_kwargs)</tool>`, where the `**tool_kwargs` should"
-" always be named parameters (ALWAYS use keyword arguments instead of "
-"positional arguments) in the tool's definition. Use one tool at a time "
-"and iterate until you have the final answer (report in "
-"`<output></output>`). The tool's output will be provided to you in the "
-"next message. Here are some tools you can use to complete the task:"
-msgstr ""
-"你可以使用工具来帮助完成任务。要使用工具，请输出 `<tool>tool_name(**tool_kwargs)</tool>`，其中 "
-"`**tool_kwargs` "
-"应始终是工具定义中的命名参数（注意始终使用关键字参数而不是位置参数）。每次使用一个工具并迭代，直到你得到最终答案（报告在 "
-"`<output></output>` 中）。工具的输出将会在下一条消息中提供给你。以下是一些你可以用来完成任务的工具："
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:81
+msgid "You may use tools to help complete the task."
+msgstr "你可以使用工具来帮助完成任务。"
 
 #: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:82
+msgid ""
+"To use a tool, output `<tool>tool_name(**tool_kwargs)</tool>`, where the "
+"`**tool_kwargs` should always be named parameters in the tool's "
+"definition."
+msgstr ""
+"要使用工具，输出 `<tool>tool_name(**tool_kwargs)</tool>`，其中 \"\"`**tool_kwargs` "
+"应始终是工具定义中已经命名的参数。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:83
+msgid ""
+"After using a tool, finish your response and wait for the tool's output "
+"to be provided by the user in `<tool_result>\\n...\\n</tool_result>` "
+"format."
+msgstr "使用工具后，结束你的回应并等待用户以 `<tool_result>\\n...\\n</tool_result>` 格式提供工具的输出。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:84
+msgid ""
+"Use one tool at a time and iterate until you have the final answer "
+"(report in `<output></output>`)."
+msgstr "一次只使用一个工具，持续迭代，直到你得到最终答案（使用 `<output></output>` 提交）。"
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:85
+msgid "Here are some tools you can use to complete the task:"
+msgstr "以下是一些你可以用来完成任务的工具："
+
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:100
 msgid "Examples"
 msgstr "示例"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:92
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:110
 msgid "Instructions"
 msgstr "指令"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:112
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt.jinja:130
 msgid "New Instance"
 msgstr "新实例"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:30
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:31
 msgid "Inputs:"
 msgstr "输入:"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:44
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:47
 msgid "Hints:"
 msgstr "提示:"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:52
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:55
 msgid "Output:"
 msgstr "输出:"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:66
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:73
 msgid "Expected:"
 msgstr "预期输出:"
 
-#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:80
+#: /Users/magolor/Utils/RubikSQL/AgentHeaven-dev/src/ahvn/resources/prompts/system/prompt_instance.jinja:89
 msgid "Notes:"
 msgstr "备注:"
 

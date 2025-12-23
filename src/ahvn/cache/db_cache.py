@@ -40,7 +40,7 @@ class DatabaseCache(BaseCache):
         Initialization.
 
         Args:
-            provider (str): Database provider ('sqlite', 'pg', 'duckdb').
+            provider (str): Database provider ('sqlite', 'pg', 'duckdb', etc.).
             database (str): Database name or path (':memory:' for in-memory).
             exclude (Optional[Iterable[str]]): Keys to exclude from inputs when creating cache entries.
             *args: Additional positional arguments.

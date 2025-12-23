@@ -22,6 +22,7 @@ pymilvus==2.6.3  # 2.6.4 not supported by llama-index yet
 pymongo
 pymongo>=4.0
 pymysql
+pyodbc
 spacy
 sqlalchemy>=2.0
 sqlglot>=20.0

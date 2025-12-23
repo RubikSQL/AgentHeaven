@@ -24,7 +24,7 @@ __all__ = [
 from .path_utils import *
 from .config_utils import HEAVEN_CM, hpj
 
-_encoding = HEAVEN_CM.get("encoding", "utf-8")
+_encoding = HEAVEN_CM.get("core.encoding", "utf-8")
 
 import os
 import shutil
@@ -434,8 +434,12 @@ def copy_dir(src: str, dst: str, mode: Literal["replace", "skip", "strict", "mer
             raise FileExistsError(
                 f"Destination directory {dst} already exists with conflicting files: {', '.join(conflicts)}. Use 'replace', 'skip', or 'merge' copy mode to handle this."
             )
+        return
     for f in enum_paths(src, abs=True):
         dstf = hpj(dst, os.path.relpath(f, src), abs=True)
+        if exists_path(dstf):
+            if mode == "skip":
+                continue
         shutil.copy2(f, dstf)
     return dst
 

@@ -93,6 +93,32 @@ def clean(dry_run):
                     click.echo(color_error(f"Failed to clean {path_type.lower()}: {path}"), err=True)
 
 
+@cli.command(
+    help="""\
+Join path strings using AgentHeaven's path utility.
+
+This command uses the hpj() function to join path components with proper
+handling of special characters like ~, &, >, and forward slashes.
+The result is returned as an absolute path.
+"""
+)
+@click.argument("string", metavar="STRING", nargs=-1, required=True)
+def pj(string):
+    """\
+    Join path strings using hpj utility.
+    """
+    from ..utils.basic.config_utils import hpj
+    from ..utils.basic.color_utils import color_error
+
+    try:
+        # Join all arguments into a single string
+        path_str = " ".join(string)
+        result = hpj(path_str, abs=True)
+        click.echo(result)
+    except Exception as e:
+        click.echo(color_error(f"Error: {e}"), err=True)
+
+
 # Register commands from other modules with improved help descriptions
 
 register_repo_commands(cli)

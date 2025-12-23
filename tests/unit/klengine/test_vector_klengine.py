@@ -25,14 +25,14 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from fixtures.factory import _get_short_name
-from fixtures import TestConfigLoader
+from fixtures import ConfigLoader
 
 
 # Load vector providers from tests.json
 def pytest_generate_tests(metafunc):
     """Generate test parameters from tests.json VDB configurations."""
     if "provider" in metafunc.fixturenames:
-        config_loader = TestConfigLoader()
+        config_loader = ConfigLoader()
         configs = config_loader.get_vdb_configs(metafunc.function.__name__)
         # Extract unique providers from VDB configs
         providers = sorted(set(backend for backend, _ in configs))
@@ -42,7 +42,7 @@ def pytest_generate_tests(metafunc):
 # Determine minimal providers from tests.json dynamically
 def _get_minimal_providers():
     """Get list of minimal vector providers from tests.json."""
-    config_loader = TestConfigLoader()
+    config_loader = ConfigLoader()
     configs = config_loader.get_vdb_configs("test")
     return tuple(sorted(set(backend for backend, _ in configs)))
 

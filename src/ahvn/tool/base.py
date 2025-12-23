@@ -83,6 +83,10 @@ class ToolSpec(object):
         self._template: Any = None
 
     @property
+    def name(self):
+        return self.tool.name
+
+    @property
     def binded(self):
         if not self.binds:
             return self.tool

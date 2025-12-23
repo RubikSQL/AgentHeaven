@@ -108,7 +108,7 @@ class VectorDatabase(object):
             config = {"dim": self.k_dim} | self.config
             self.vdb = MilvusVectorStore(**config)
             self.vdb.client.load_collection(self.vdb.collection_name)
-            utility.wait_for_loading_complete(self.vdb.collection_name)
+            utility.wait_for_loading_complete(self.vdb.collection_name, using=config.get("alias", "default"))
             return
         if self.backend == "pgvector":
             from llama_index.vector_stores.postgres import PGVectorStore

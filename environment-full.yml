@@ -74,6 +74,7 @@ dependencies:
         - pymongo
         - pymongo>=4.0
         - pymysql
+        - pyodbc
         - spacy
         - sqlalchemy>=2.0
         - sqlglot>=20.0

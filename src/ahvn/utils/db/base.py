@@ -460,18 +460,26 @@ class Database(object):
     - SQL transpilation between different database dialects
     """
 
-    def __init__(self, database: Optional[str] = None, provider: Optional[str] = None, connect: bool = False, **kwargs):
+    def __init__(
+        self,
+        database: Optional[str] = None,
+        provider: Optional[str] = None,
+        pool: Optional[Dict[str, Any]] = None,
+        connect: bool = False,
+        **kwargs,
+    ):
         """\
         Initialize database connection.
 
         Args:
             database: Database name or path (':memory:' for in-memory)
-            provider: Database provider ('sqlite', 'pg', 'duckdb')
+            provider: Database provider ('sqlite', 'pg', 'duckdb', etc.)
+            pool: Pool configuration to override provider defaults (e.g., {'pool_size': 10})
             connect: Whether to establish a connection immediately (default: False)
             **kwargs: Additional connection parameters
         """
         super().__init__()
-        self.config, self.config_conn_args = resolve_db_config(database=database, provider=provider, **kwargs)
+        self.config, self.config_conn_args = resolve_db_config(database=database, provider=provider, pool=pool, **kwargs)
         self.dialect = self.config_conn_args.get("dialect", None)
         self.proxy = NetworkProxy(
             http_proxy=self.config.pop("http_proxy", None),
@@ -491,37 +499,91 @@ class Database(object):
         if connect:
             self.connect()
 
+    def clone(self) -> "Database":
+        """\
+        Create an independent Database instance with the same configuration.
+
+        Each clone has its own connection, making it safe for parallel operations
+        where each worker needs an independent database connection.
+
+        Warning:
+            For in-memory databases (`:memory:`), cloned instances do NOT share data.
+            Each clone gets its own separate in-memory database.
+            Use file-based databases for parallel operations requiring shared state.
+
+        Returns:
+            Database: A new independent Database instance.
+
+        Example:
+            ```python
+            # Parallel-safe pattern
+            def worker(db_template, task_id):
+                db = db_template.clone()  # Each worker gets own connection
+                try:
+                    result = db.execute("SELECT * FROM tasks WHERE id = :id", params={"id": task_id})
+                    return result.to_list()
+                finally:
+                    db.close()
+
+            # Use with threading/multiprocessing
+            with ThreadPoolExecutor() as executor:
+                futures = [executor.submit(worker, db, i) for i in range(10)]
+            ```
+        """
+        database = self.config_conn_args.get("database", "")
+        if database == ":memory:":
+            logger.warning(
+                "Cloning an in-memory database - cloned instances will NOT share data. "
+                "Each clone has its own separate in-memory database. "
+                "Use a file-based database for parallel operations requiring shared state."
+            )
+
+        # Extract original parameters from config_conn_args
+        return Database(
+            provider=self.config_conn_args.get("provider"),
+            database=database,
+            pool=self.config_conn_args.get("pool"),
+            connect=False,
+            **{k: v for k, v in self.config_conn_args.items() if k not in ["database", "provider", "pool", "dialect", "driver", "url"]},
+        )
+
     def connect(self):
         """\
         Establish a database connection.
 
+        The connection pool (configured per dialect) handles:
+        - Stale connection detection via pool_pre_ping
+        - Connection recycling to prevent timeouts
+        - Thread-safe connection management
+
         Returns:
             Connection: The SQLAlchemy connection object
         """
-        if self._conn is None:
+        if self._conn is None or self._conn.closed:
             with self.proxy:
                 self._conn = self.engine.connect()
         return self._conn
 
     def close_conn(self, commit: bool = True):
         """\
-        Close the database connection and clean up resources.
+        Close the database connection and return it to the pool.
 
         Args:
-            commit: Whether to commit the transaction before closing.
+            commit: Whether to commit pending transaction before closing.
         """
         if self._conn is not None:
             try:
-                if commit:
-                    self.commit()
-                else:
-                    self.rollback()
+                if self._conn.in_transaction():
+                    if commit:
+                        self._conn.commit()
+                    else:
+                        self._conn.rollback()
             except Exception as e:
-                logger.warning(f"Failed to commit/rollback during close: {error_str(e)}")
+                logger.debug(f"Transaction cleanup during close: {error_str(e, tb=False)}")
             try:
                 self._conn.close()
             except Exception as e:
-                logger.warning(f"Failed to close connection: {error_str(e)}")
+                logger.debug(f"Connection close: {error_str(e, tb=False)}")
             finally:
                 self._conn = None
 
@@ -548,27 +610,21 @@ class Database(object):
         Returns:
             bool: True if in transaction, False otherwise
         """
-        return self.connected and self._conn.in_transaction()
+        return self._conn is not None and not self._conn.closed and self._conn.in_transaction()
 
     def commit(self):
         """\
         Commit the current transaction.
         """
         if self.in_transaction():
-            try:
-                self._conn.commit()
-            except Exception as e:
-                logger.warning(f"Failed to commit transaction: {error_str(e)}")
+            self._conn.commit()
 
     def rollback(self):
         """\
         Rollback the current transaction.
         """
         if self.in_transaction():
-            try:
-                self._conn.rollback()
-            except Exception as e:
-                logger.warning(f"Failed to rollback transaction: {error_str(e)}")
+            self._conn.rollback()
 
     def __enter__(self):
         """\
@@ -724,9 +780,8 @@ class Database(object):
 
         try:
             # Process string query with optional transpilation and parameters
-            # # Disable transpilation for now
-            # # processed_query, processed_params = self.sql_processor.process_query(query, params, transpile_from=transpile)
-            return self._exec_sql(get_sa().text(query), params, autocommit=autocommit, safe=safe)
+            processed_query, processed_params = self.sql_processor.process_query(query, params, transpile_from=transpile)
+            return self._exec_sql(get_sa().text(processed_query), processed_params, autocommit=autocommit, safe=safe)
         except Exception as e:
             if safe:
                 # Return structured error response using the error handler
@@ -749,40 +804,61 @@ class Database(object):
             pass
 
     def _exec_sql(self, query, params=None, autocommit: Optional[bool] = False, safe: bool = False) -> Optional[Union[SQLResponse, SQLErrorResponse]]:
+        """\
+        Internal method to execute SQL queries.
+
+        Connection pool handles stale connection recovery via pool_pre_ping.
+        Transaction management:
+        - autocommit=True: Execute and commit immediately (for DDL, single statements)
+        - autocommit=False: Execute without commit (for use in transactions)
+        - In context manager: autocommit=True is not allowed
+
+        Args:
+            query: SQLAlchemy text() or ClauseElement
+            params: Query parameters
+            autocommit: Whether to commit after execution
+            safe: If True, re-raise exceptions for caller to handle as SQLErrorResponse
+
+        Returns:
+            SQLResponse or None
+        """
         if autocommit and self._in_context_manager:
             raise DatabaseError("Cannot use `autocommit=True` within a context manager!")
 
-        # Ensure clean transaction state before executing new operations
-        # Only commit if we're not in a context manager (to preserve transaction integrity)
-        if self.in_transaction() and not self._in_context_manager:
-            # Commit existing transaction before starting new operations
+        # Outside context manager: ensure clean transaction state
+        if not self._in_context_manager and self.in_transaction():
             self.commit()
 
-        if autocommit is True:
-            try:
-                if params is not None:
-                    result = self.conn.execute(query, params)
-                else:
-                    result = self.conn.execute(query)
-                response = SQLResponse(result) if result else None
+        try:
+            # Execute the query
+            result = self.conn.execute(query, params) if params else self.conn.execute(query)
+            response = SQLResponse(result) if result else None
+
+            # Commit if autocommit mode
+            if autocommit:
                 self.commit()
-                return response
-            except Exception as e:
-                self.rollback()
-                if safe:
-                    # In safe mode, just log debug and re-raise for the caller to handle
-                    logger.debug(f"Database execution failed (safe mode): {error_str(e, tb=False)}")
-                    raise
-                else:
-                    # In unsafe mode, log error and raise DatabaseError
-                    logger.error(f"Database execution failed (autocommit -> rollback): {error_str(e)}")
-                    raise DatabaseError(f"Database execution failed (autocommit -> rollback): {error_str(e)}")
-        else:
-            if params is not None:
-                result = self.conn.execute(query, params)
+
+            return response
+
+        except Exception as e:
+            # Always attempt to recover from invalid transaction state
+            if self._conn is not None:
+                try:
+                    # Try to rollback the connection directly (bypassing in_transaction check)
+                    # This handles SQLAlchemy's PendingRollbackError state
+                    self._conn.rollback()
+                except Exception:
+                    # If rollback fails, close and dispose connection
+                    pass
+                # Close the connection to return it to the pool in a clean state
+                self.close_conn()
+
+            if safe:
+                logger.debug(f"Database execution failed (safe mode): {error_str(e, tb=False)}")
+                raise
             else:
-                result = self.conn.execute(query)
-            return SQLResponse(result) if result else None
+                logger.error(f"Database execution failed: {error_str(e)}")
+                raise DatabaseError(f"Database execution failed: {error_str(e)}")
 
     # === Database Inspection Methods ===
     def db_tabs(self) -> List[str]:
@@ -792,11 +868,6 @@ class Database(object):
         Returns:
             List[str]: List of table names
         """
-        # Ensure clean transaction state for inspection operations (only during cleanup)
-        # Only commit if we're not in a context manager
-        if self.in_transaction() and not self._in_context_manager:
-            self.commit()
-
         try:
             inspector = get_sa().inspect(self.conn)
             return inspector.get_table_names()
@@ -1090,22 +1161,14 @@ class Database(object):
         """\
         Clear all data from a specific table without deleting the table itself.
 
-        This method will clear all data from the specified table while preserving
-        the table structure. Uses SQLAlchemy ORM to ensure compatibility across
-        all database backends.
+        Uses SQLAlchemy ORM to ensure compatibility across all database backends.
 
         Args:
             tab_name: Name of the table to clear
 
         Raises:
             Exception: If the clearing operation fails
-            ValueError: If the table doesn't exist
         """
-        # Commit any existing transaction before DDL operations
-        # Only commit if we're not in a context manager
-        if self.in_transaction() and not self._in_context_manager:
-            self.commit()
-
         try:
             from sqlalchemy import MetaData, Table, delete
 
@@ -1122,9 +1185,6 @@ class Database(object):
         """\
         Drop a specific table from the database.
 
-        Any existing connections will be rolled back before dropping.
-
-        This method will permanently delete the specified table and all its data.
         Uses SQLAlchemy ORM to ensure compatibility across all database backends.
 
         Args:
@@ -1132,51 +1192,27 @@ class Database(object):
 
         Raises:
             Exception: If the drop operation fails
-            ValueError: If the table doesn't exist
         """
-        # Commit any existing transaction before DDL operations
-        # Only commit if we're not in a context manager
-        if self.in_transaction() and not self._in_context_manager:
-            self.commit()
-
-            try:
-                metadata = get_sa().MetaData()
-                table = get_sa().Table(tab_name, metadata, autoload_with=self.engine)
-                try:
-                    table.drop(self.engine, cascade=True)
-                    logger.info(f"Dropped table with cascade: {tab_name}")
-                except (TypeError, Exception):
-                    # If cascade is not supported or fails, try normal drop
-                    table.drop(self.engine)
-                    logger.info(f"Dropped table: {tab_name}")
-
-                # Ensure the drop is committed for all database types
-                self.commit()
-                # Force a simple query to ensure the drop is processed
-                try:
-                    self.execute(get_sa().text("SELECT 1"), autocommit=True)
-                except Exception:
-                    pass
-
-            except Exception as e:
-                logger.error(f"Failed to drop table {tab_name}: {error_str(e)}")
-                raise Exception(f"Table drop failed for {tab_name}: {e}")
+        try:
+            metadata = get_sa().MetaData()
+            table = get_sa().Table(tab_name, metadata, autoload_with=self.engine)
+            table.drop(self.engine)
+            logger.info(f"Dropped table: {tab_name}")
+        except Exception as e:
+            logger.error(f"Failed to drop table {tab_name}: {error_str(e)}")
+            raise Exception(f"Table drop failed for {tab_name}: {e}")
 
     def drop_view(self, view_name: str) -> None:
-        """
+        """\
         Drop a specific view from the database.
-        Any existing connections will be rolled back before dropping.
-        This method will permanently delete the specified view.
+
         Args:
             view_name: Name of the view to drop
+
         Raises:
             Exception: If the drop operation fails
         """
-        # Commit any existing transaction before DDL operations
-        self.commit()
-
         try:
-            # Use direct SQL for view dropping as it's more reliable across databases
             self.execute(f"DROP VIEW IF EXISTS {view_name}", autocommit=True)
             logger.info(f"Dropped view: {view_name}")
         except Exception as e:
@@ -1185,47 +1221,32 @@ class Database(object):
 
     def drop(self) -> None:
         """\
-        Drop the entire database.
+        Drop all tables in the database.
 
-        Any existing connections will be rolled back and closed before dropping.
-
-        This method will permanently delete the database and all its contents.
-        Uses universal drop logic to ensure compatibility across all database backends.
+        Uses SQLAlchemy metadata reflection to drop all tables.
 
         Raises:
             DatabaseError: If the database drop operation fails
         """
         try:
-            # Commit any existing transaction before DDL operations
-            if self.in_transaction():
-                self.commit()
-
-            # Universal database drop using metadata
-            metadata = MetaData()
-            try:
-                metadata.reflect(bind=self.engine)
-                metadata.drop_all(bind=self.engine, checkfirst=True)
-                logger.info("Dropped all tables and views using metadata")
-            except Exception as e:
-                logger.warning(f"Metadata drop failed, trying fallback: {error_str(e)}")
-                # Fallback: try to drop tables individually
+            # Use SQLAlchemy metadata to reflect and drop all tables
+            metadata = get_sa().MetaData()
+            metadata.reflect(bind=self.engine)
+            metadata.drop_all(bind=self.engine, checkfirst=True)
+            logger.info("Dropped all tables using metadata")
+        except Exception as e:
+            logger.warning(f"Metadata drop failed, trying fallback: {error_str(e)}")
+            # Fallback: try to drop tables individually
+            tables = self.db_tabs()
+            for table_name in tables:
                 try:
-                    tables = self.db_tabs()
-                    for table_name in tables:
-                        try:
-                            self.drop_tab(table_name)
-                        except Exception as table_e:
-                            logger.warning(f"Failed to drop table {table_name}: {error_str(table_e)}")
-                    logger.info("Completed fallback table drop")
-                except Exception as fallback_e:
-                    logger.error(f"All drop methods failed: {error_str(fallback_e)}")
-                    raise DatabaseError(f"Database drop failed: {fallback_e}")
+                    self.drop_tab(table_name)
+                except Exception as table_e:
+                    logger.warning(f"Failed to drop table {table_name}: {error_str(table_e)}")
         finally:
             # Close connection and dispose engine
-            if self._conn is not None:
-                self.close_conn(commit=False)  # Don't commit again, already handled above
+            self.close_conn(commit=False)
             if hasattr(self, "engine") and self.engine:
-                # Enhanced engine disposal with recursion prevention
                 self.engine.dispose()
                 self.engine = None
 
@@ -1246,18 +1267,11 @@ class Database(object):
         """\
         Clear all data from tables in the database without deleting the tables themselves.
 
-        This method will clear all data from all tables in the current database, effectively
-        clearing all data while preserving the database structure. Uses the `clear_tab` method
-        to ensure compatibility across all database backends.
+        Uses the `clear_tab` method to ensure compatibility across all database backends.
 
         Raises:
             Exception: If the clearing operation fails
         """
-        # Commit any existing transaction before bulk operations
-        # Only commit if we're not in a context manager
-        if self.in_transaction() and not self._in_context_manager:
-            self.commit()
-
         tables = self.db_tabs()
         for table_name in tables:
             try:
@@ -1271,7 +1285,6 @@ class Database(object):
         """
         self.close_conn(commit=True)
         if hasattr(self, "engine") and self.engine:
-            # Enhanced engine disposal with recursion prevention
             self.engine.dispose()
             self.engine = None
 
@@ -1294,7 +1307,7 @@ def table_display(
             the schema is inferred from the SQLResponse or from the first row of the iterable.
         max_rows (int, optional): Maximum number of rows to display (including the last row and an ellipsis row if truncated).
             If the table has more than `max_rows + 1` rows, the output will show the first `max_rows-1` rows, an ellipsis row,
-            and the last row. Defaults to 10.
+            and the last row. Defaults to 64.
         max_width (int, optional): Maximum width for each column in the output table. Defaults to 64.
         style (Literal["DEFAULT", "MARKDOWN", "PLAIN_COLUMNS", "MSWORD_FRIENDLY", "ORGMODE", "SINGLE_BORDER", "DOUBLE_BORDER", "RANDOM"], optional): The style to use for the table (supported by PrettyTable). Defaults to "DEFAULT".
         **kwargs: Additional keyword arguments passed to PrettyTable.

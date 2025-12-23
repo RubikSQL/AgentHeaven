@@ -27,13 +27,13 @@ class TestRaiseMismatch:
     def test_value_not_in_supported_list_with_suggestion(self):
         """Test when the value is not in the supported list but has a close match."""
         supported = ["apple", "banana", "cherry"]
-        result = raise_mismatch(supported, "aple", mode="ignore")
+        result = raise_mismatch(supported, "aple", mode="match")
         assert result == "apple"
 
     def test_value_not_in_supported_list_no_suggestion(self):
         """Test when the value is not in the supported list and no close match."""
         supported = ["apple", "banana", "cherry"]
-        result = raise_mismatch(supported, "xyz", mode="ignore")
+        result = raise_mismatch(supported, "xyz", mode="match")
         assert result is None
 
     def test_mode_warn_with_suggestion(self):
@@ -104,11 +104,11 @@ class TestRaiseMismatch:
         """Test with custom threshold parameter."""
         supported = ["apple", "banana", "cherry"]
         # Very low threshold should still find a match
-        result = raise_mismatch(supported, "aple", mode="ignore", thres=0.1)
+        result = raise_mismatch(supported, "aple", mode="match", thres=0.1)
         assert result == "apple"
 
         # Very high threshold should not find a match
-        result = raise_mismatch(supported, "aple", mode="ignore", thres=0.9)
+        result = raise_mismatch(supported, "aple", mode="match", thres=0.9)
         assert result is None
 
     def test_empty_supported_list(self):
@@ -124,7 +124,7 @@ class TestRaiseMismatch:
         result = raise_mismatch(supported, 1)
         assert result == 1
 
-        result = raise_mismatch(supported, 4, mode="ignore")
+        result = raise_mismatch(supported, 4, mode="match")
         assert result is None
 
     def test_mixed_types(self):
@@ -152,7 +152,7 @@ class TestRaiseMismatch:
             mock_instance = MagicMock()
             mock_instance.ratio.return_value = 0.3
             mock_matcher.return_value = mock_instance
-            result = raise_mismatch(supported, "aple", mode="ignore", thres=0.3)
+            result = raise_mismatch(supported, "aple", mode="match", thres=0.3)
             assert result == "apple"
 
         # Just below threshold
@@ -160,7 +160,7 @@ class TestRaiseMismatch:
             mock_instance = MagicMock()
             mock_instance.ratio.return_value = 0.299
             mock_matcher.return_value = mock_instance
-            result = raise_mismatch(supported, "aple", mode="ignore", thres=0.3)
+            result = raise_mismatch(supported, "aple", mode="match", thres=0.3)
             assert result is None
 
 

@@ -195,6 +195,7 @@ class ORMUKFMainEntityFactory:
             "id": Column("id", DatabaseIdType(), primary_key=True, nullable=False),
         }
         ukf_schema = BaseUKF.schema()
+        aliased_fields = set()
         for field_name in fields:
             if field_name == "id":
                 continue  # Already handled above
@@ -204,7 +205,7 @@ class ORMUKFMainEntityFactory:
             else:
                 field_type = ORM_FIELD_TYPES.get(ukf_schema.get(field_name).name)
             attrs[alias_name] = Column(alias_name, field_type, nullable=True, primary_key=False)
-        fields_set = set(fields)
+            aliased_fields.add(alias_name)
         attrs["__table_args__"] = tuple(
             [
                 (
@@ -213,7 +214,7 @@ class ORMUKFMainEntityFactory:
                     else Index(f"idx_{name}_{'_'.join(idx)}", *idx)
                 )
                 for idx in cls.indices
-                if set(idx["columns"] if isinstance(idx, dict) else idx).issubset(fields_set)
+                if set(idx["columns"] if isinstance(idx, dict) else idx).issubset(aliased_fields)
             ]
         ) + ({"extend_existing": True},)
 
@@ -293,6 +294,19 @@ class ORMUKFAdapter(BaseUKFAdapter):
             )
         self.dims = {"main": self.main, **self.dims}  # Make sure main is always first
         _ORM_ENTITY_CLASSES_CACHE[cache_key] = self.dims
+
+    def main_table_name(self) -> str:
+        return self.main.__tablename__
+
+    def dims_table_name(self, dim_name: str) -> str:
+        dim_cls = self.dims.get(dim_name)
+        if not dim_cls:
+            raise ValueError(f"Dimension '{dim_name}' not found in adapter.")
+        return dim_cls.__tablename__
+
+    def table_names(self) -> List[str]:
+        """Get all table names managed by this adapter."""
+        return {dim: cls.__tablename__ for dim, cls in self.dims.items()}
 
     def _tags_from_ukf(self, kl: BaseUKF) -> ExportableEntity:
         return [
